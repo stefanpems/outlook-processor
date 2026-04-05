@@ -20,8 +20,9 @@ __pycache__/
 # Debug artifacts
 debug_*.png
 
-# Deprecated skills with hardcoded data
+# Deprecated files with hardcoded data
 .github/skills/OLD-blog-notifications/
+.github/OLD-copilot-instructions.md
 
 # VS Code
 .vscode/
