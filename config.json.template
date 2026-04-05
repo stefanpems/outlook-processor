@@ -1,0 +1,43 @@
+{
+  "outlook": {
+    "sender": "sender@example.onmicrosoft.com",
+    "subject_prefix": "[Blog-",
+    "processed_category": "By agent - Blog",
+    "target_folder": "Your-Target-Folder",
+    "exclude_terms": ["ExampleExclude"]
+  },
+  "email_report": {
+    "default_recipients": "user@example.com"
+  },
+  "sharepoint": {
+    "site_base": "https://yourtenant-my.sharepoint.com/personal/youruser_yourtenant_com",
+    "blog_list_title": "BlogPosts",
+    "blog_list_url": "https://yourtenant-my.sharepoint.com/personal/youruser_yourtenant_com/Lists/BlogPosts/AllItems.aspx",
+    "blog_list_api": "/personal/youruser_yourtenant_com/_api/web/lists/getbytitle('BlogPosts')",
+    "blog_list_entity_type": "SP.Data.BlogPostsListItem",
+    "tech_list_title": "Ref Technologies New",
+    "tech_list_url": "https://yourtenant-my.sharepoint.com/personal/youruser_yourtenant_com/Lists/Ref%20Technologies%20New/AllItems.aspx",
+    "tech_list_api": "/personal/youruser_yourtenant_com/_api/web/lists/getbytitle('Ref%20Technologies%20New')/items?$select=Id,Title&$top=500"
+  },
+  "edge_cdp": {
+    "url": "http://localhost:9222",
+    "edge_path": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+    "profile_dir_env": "%LOCALAPPDATA%\\Edge-Debug-Profile"
+  },
+  "output": {
+    "dir": "output",
+    "xlsx_pattern": "{date}-{nn}-ProcessedEmails.xlsx",
+    "html_pattern": "{date}-{nn}-ProcessedEmails.html"
+  },
+  "source_map": {
+    "TopicName": 0
+  },
+  "tech_map": {
+    "TechLabel": 0
+  },
+  "topic_color_palette": [
+    "#F0E6D3", "#D3E8F0", "#D3F0D6", "#F0D3E6", "#E6F0D3", "#D3D8F0",
+    "#F0DAD3", "#D3F0EA", "#E8D3F0", "#F0F0D3", "#D3EAF0", "#E6D3F0",
+    "#F0D3D3", "#D3F0D3", "#D3D3F0", "#F0ECD3", "#F0D3EC", "#D3F0F0"
+  ]
+}

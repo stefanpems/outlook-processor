@@ -1,0 +1,27 @@
+# Configuration (contains credentials and personal settings)
+config.json
+
+# Output reports
+output/
+
+# Blog cache
+blog_cache/
+
+# Session and cached data
+session_state.json
+sp_blogposts.json
+tech_list.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Debug artifacts
+debug_*.png
+
+# Deprecated skills with hardcoded data
+.github/skills/OLD-blog-notifications/
+
+# VS Code
+.vscode/
