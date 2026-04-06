@@ -7,6 +7,9 @@ output/
 # Blog cache
 blog_cache/
 
+# YouTube transcripts
+yt_transcripts/
+
 # Session and cached data
 session_state.json
 sp_blogposts.json

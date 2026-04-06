@@ -44,6 +44,7 @@ If an existing script does not cover a need:
 | `pipeline_email_report.py` | Build HTML blog digest from SP BlogPosts (grouped by topic), save to `output/` for email sending. |
 | `engage_read_conversations.py` | Read conversations from a Viva Engage community via CDP → JSON to stdout. |
 | `engage_build_html.py` | Build HTML digest from Viva Engage conversation summaries JSON → `output/`. |
+| `yt_transcript.py` | Download YouTube video transcript via CDP → `transcript_<VIDEO_ID>.txt`. |
 
 ### Configuration & Data Files
 
