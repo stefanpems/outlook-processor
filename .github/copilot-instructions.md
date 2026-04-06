@@ -42,6 +42,8 @@ If an existing script does not cover a need:
 | `pipeline_cache_blogs.py` | Bulk blog content fetcher/cacher → `blog_cache/`. |
 | `pipeline_update_sp_summaries.py` | Bulk-updates Summary field on existing SP items via REST MERGE. |
 | `pipeline_email_report.py` | Build HTML blog digest from SP BlogPosts (grouped by topic), save to `output/` for email sending. |
+| `engage_read_conversations.py` | Read conversations from a Viva Engage community via CDP → JSON to stdout. |
+| `engage_build_html.py` | Build HTML digest from Viva Engage conversation summaries JSON → `output/`. |
 
 ### Configuration & Data Files
 
@@ -74,6 +76,7 @@ Start-Sleep -Seconds 2
 & "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" `
     --remote-debugging-port=9222 `
     --user-data-dir="$env:LOCALAPPDATA\Edge-Debug-Profile" `
+    --profile-directory="<value from config.json → edge_cdp.profile_name>" `
     --no-first-run `
     --no-default-browser-check
 ```

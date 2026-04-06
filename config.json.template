@@ -22,7 +22,16 @@
   "edge_cdp": {
     "url": "http://localhost:9222",
     "edge_path": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
-    "profile_dir_env": "%LOCALAPPDATA%\\Edge-Debug-Profile"
+    "profile_dir_env": "%LOCALAPPDATA%\\Edge-Debug-Profile",
+    "profile_name": "Profile 42"
+  },
+  "viva_engage": {
+    "communities": [
+      "Community Name 1",
+      "Community Name 2"
+    ],
+    "default_days": 1,
+    "default_recipients": "your-digest-recipients@example.com"
   },
   "output": {
     "dir": "output",

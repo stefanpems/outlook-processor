@@ -19,6 +19,12 @@ __pycache__/
 
 # Debug artifacts
 debug_*.png
+viva_engage_*.png
+
+# Viva Engage intermediate/temp files
+_ve_*.json
+_ve_*.log
+_ve_*.txt
 
 # Deprecated files with hardcoded data
 .github/skills/OLD-blog-notifications/
