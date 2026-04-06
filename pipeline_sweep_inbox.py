@@ -13,6 +13,7 @@ This avoids the broken keyboard-navigation-through-277-items approach.
 """
 import json, re, os, sys, time
 from playwright.sync_api import sync_playwright
+from cdp_helper import ensure_edge_cdp
 
 sys.stdout = open(sys.stdout.fileno(), mode="w", buffering=1)
 
@@ -31,6 +32,7 @@ DATE_TO   = sys.argv[2] if len(sys.argv) > 2 else "2026-03-31"
 
 
 def connect():
+    ensure_edge_cdp()
     p = sync_playwright().start()
     browser = p.chromium.connect_over_cdp(CDP_URL)
     ctx = browser.contexts[0]

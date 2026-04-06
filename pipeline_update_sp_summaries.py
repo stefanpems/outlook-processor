@@ -17,12 +17,14 @@ for u in updates:
 # Connect to Edge and update via SP REST API
 from playwright.sync_api import sync_playwright
 from urllib.parse import urlparse as _urlparse
+from cdp_helper import ensure_edge_cdp
 
 CDP_URL = CONFIG["edge_cdp"]["url"]
 SP_API = CONFIG["sharepoint"]["blog_list_api"]
 SP_LIST_URL = CONFIG["sharepoint"]["blog_list_url"]
 _sp_site_path = _urlparse(CONFIG["sharepoint"]["site_base"]).path.rstrip('/')
 
+ensure_edge_cdp()
 p = sync_playwright().start()
 browser = p.chromium.connect_over_cdp(CDP_URL)
 ctx = browser.contexts[0]

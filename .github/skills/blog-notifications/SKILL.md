@@ -62,6 +62,29 @@ The user may also explicitly request to **reprocess already-processed emails**. 
 
 In short: if the user's action verb starts with "Ri" (Italian) or "Re" (English) prefix implying repetition, treat it as reprocess mode. If the verb has no repetition prefix (e.g. "Processa", "Elabora", "Process"), use normal mode.
 
+### Digest Mode
+
+**Digest mode is activated** when the user asks to **create a digest** (e.g. "Crea digest dei blog", "Create blog digest", "Genera il digest dei blog post dal X al Y"). The key verbs are "crea/create/genera" (not "invia/send" — which triggers the `blog-email-report` skill for SP-only queries without email processing).
+
+Digest mode has two sub-cases:
+
+**Digest + Reprocess:** If the digest request ALSO contains a reprocess indicator ("ri-"/"re-" prefix, such as "Crea digest riprocessando", "Regenera il digest"), combine reprocess logic with mandatory email sending. Process all emails (including already-categorized), regenerate all summaries, then send the digest.
+
+**Digest (standard):** If no reprocess indicator is present:
+- Retrieve ALL emails in the period, **including** already-processed ones (same retrieval flag as reprocess mode).
+- For each email, check if a complete SP item already exists. If complete, just ensure the email is categorized+moved, and collect the SP item data for the digest. If incomplete or missing, fetch content, create/update the SP item, then collect data.
+- After processing all emails, **always** generate and send the HTML digest email.
+
+**Required SP fields (completeness check for Blogs):** Published, Title, Tech, Link, Source, Summary. An SP item is considered "complete" when `sp_has_summary` is true (the pipeline always populates all fields at creation time, so Summary presence reliably indicates full field completeness).
+
+### Summary of Execution Modes
+
+| Prompt pattern | Mode | Email retrieval | SP logic | Digest email |
+|----------------|------|-----------------|----------|---------------|
+| "Processa le email..." | Standard | Exclude processed | Create if missing, update Summary if empty, skip if complete | Only if explicitly requested |
+| "Riprocessa le email..." | Reprocess | Include all | Create if missing, always regenerate+update | Only if explicitly requested |
+| "Crea digest..." | Digest | Include all | Create if missing, fill gaps if incomplete, skip if complete | **Always** sent |
+| "Crea digest... riprocessa..." | Digest + Reprocess | Include all | Create if missing, always regenerate+update | **Always** sent |
 
 If dates are missing, ask the user.
 
@@ -106,6 +129,8 @@ python pipeline_retrieve.py {DATE_FROM} {DATE_TO}
 
 **Reprocess mode** (only if user explicitly requested it):
 
+**Digest mode** (both sub-cases — always includes processed emails):
+
 ```bash
 python pipeline_retrieve.py {DATE_FROM} {DATE_TO} --include-processed
 ```
@@ -124,11 +149,17 @@ This script:
 
 **CRITICAL — If 0 emails are found (normal mode):** Stop the entire pipeline and inform the user. Do **NOT** retry without the negative filter. Do **NOT** fall back to reprocess mode. The only way to include already-processed emails is if the user **expressly** requested it in the original prompt.
 
+**If 0 emails are found (Digest mode):** Skip the per-email processing loop (Step 3) but **still execute Step 5** — the digest report is generated from SP data and may contain items registered in previous sessions.
+
 ---
 
 ### Step 3 — Process Each Email (Per-Email Loop)
 
 Loop over the emails in `session_state.json`. For EACH email, perform Steps 3.1 through 3.7 in sequence. After each email, update the session state and reports.
+
+**Digest mode (standard) — modified step order:** Perform Step 3.2 (dup check) **before** Step 3.1 (content fetch). Use the email's original `blog_link` URL and the `title` extracted from the email subject for the dup check. This allows skipping the expensive content fetch for SP items that are already complete. See the Digest mode table in Step 3.2 for the decision logic.
+
+**Digest + Reprocess mode:** Follow the same step order as Reprocess mode (3.1 → 3.2 → 3.4 → 3.5 → 3.6 → 3.7).
 
 #### 3.1 — Fetch Blog Content & Resolve Final URL
 
@@ -170,6 +201,20 @@ This returns JSON with: `dup_session`, `dup_sp`, `sp_id`, `sp_has_summary`.
 |----------|--------|
 | false | Generate summary (3.4) + Create new SP item (3.5) |
 | true | **Always** regenerate summary (3.4) + Update/overwrite existing SP item summary (3.5), regardless of `sp_has_summary` |
+
+**SP item logic — Digest mode (standard)** (based on `dup_sp` and `sp_has_summary`):
+
+Remember: in this mode, Step 3.2 runs **before** Step 3.1.
+
+| `dup_sp` | `sp_has_summary` | Action |
+|----------|-----------------|--------|
+| false | — | Fetch blog content (3.1) + Generate summary (3.4) + Create new SP item (3.5) |
+| true | false | Fetch blog content (3.1) + Generate summary (3.4) + Update existing SP item (3.5) |
+| true | true | **Skip** content fetch (3.1), summary (3.4), and SP update (3.5) — item is complete |
+
+In all three cases, the SP item data (title, published_date, tech, link, source/topic, summary) will be included in the digest report generated in Step 5. For pre-existing complete items, `pipeline_email_report.py` reads these fields directly from SP.
+
+**Digest + Reprocess mode:** Same table as Reprocess mode above (always regenerate, always update).
 
 **Always perform** categorize + move (Step 3.6) for every email, regardless of duplicates.
 
@@ -254,12 +299,11 @@ After all emails are processed, print a summary:
 
 ---
 
-### Step 5 — Send Email Report (Optional)
+### Step 5 — Send Email Report
 
-This step is executed **only if the user explicitly requested sending the report via email** in their original prompt (e.g. "e invia il report", "and send the report by email", "con invio email").
-
-**Shorthand command — "Crea digest":**
-The phrase "Crea digest" (or "Crea digest dei blog post", "Create digest", etc.) with an optional date range is equivalent to: **process the emails in the specified date range (normal mode) and send the HTML report by email** (i.e. execute the full pipeline through Step 5). Any additional filters or date ranges specified by the user apply normally.
+**When this step is executed:**
+- **Standard / Reprocess mode:** Only if the user explicitly requested sending the report (e.g. "e invia il report", "and send the report by email").
+- **Digest mode (any sub-case):** **Always** executed — sending the digest is the primary goal of Digest mode.
 
 Use the **same HTML digest template and sending logic** as the `blog-email-report` skill.
 

@@ -1,4 +1,9 @@
-"""Fetch BlogPosts list from SharePoint to match against our data."""
+"""Fetch VideoPosts list from SharePoint to use for deduplication.
+
+Discovers writable fields and downloads all items to sp_videoposts.json.
+
+Usage: python pipeline_fetch_videoposts.py
+"""
 import json, sys, os
 sys.stdout = open(sys.stdout.fileno(), mode='w', buffering=1)
 from playwright.sync_api import sync_playwright
@@ -8,8 +13,13 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 CONFIG = json.load(open(os.path.join(BASE, "config.json"), encoding="utf-8"))
 
 CDP_URL = CONFIG["edge_cdp"]["url"]
-SP_API = CONFIG["sharepoint"]["blog_list_api"]
-SP_LIST_URL = CONFIG["sharepoint"]["blog_list_url"]
+SP_API = CONFIG["video_sharepoint"]["list_api"]
+SP_LIST_URL = CONFIG["video_sharepoint"]["list_url"]
+FIELDS = CONFIG["video_sharepoint"]["fields"]
+F_PUBLISHED = FIELDS["published"]
+F_DURATION = FIELDS["duration"]
+F_YT_ID = FIELDS["yt_id"]
+F_ABSTRACT = FIELDS["abstract"]
 
 ensure_edge_cdp()
 p = sync_playwright().start()
@@ -22,7 +32,7 @@ page.goto(SP_LIST_URL, wait_until="domcontentloaded", timeout=30000)
 page.wait_for_timeout(5000)
 print(f"Page title: {page.title()}")
 
-# First, check the list fields
+# Discover writable fields
 fields_result = page.evaluate(f"""async () => {{
     const resp = await fetch(
         "{SP_API}/fields?$filter=Hidden eq false and ReadOnlyField eq false&$select=Title,InternalName,TypeAsString",
@@ -45,10 +55,10 @@ count_result = page.evaluate(f"""async () => {{
 }}""")
 print(f"\\nTotal items: {count_result.get('value', 'unknown')}")
 
-# Fetch first 5 items - use Link field (URL type returns {Url,Description})
+# Fetch sample items to verify field names
 sample_result = page.evaluate(f"""async () => {{
     const resp = await fetch(
-        "{SP_API}/items?$top=5&$orderby=Id desc&$select=Id,Title,Link,Summary,field_0",
+        "{SP_API}/items?$top=5&$orderby=Id desc&$select=Id,Title,Link,{F_ABSTRACT},{F_DURATION},{F_PUBLISHED},{F_YT_ID}",
         {{ headers: {{ "Accept": "application/json;odata=nometadata" }} }}
     );
     return await resp.json();
@@ -62,17 +72,19 @@ for item in sample_result.get("value", []):
         print(f"    Link.Url={link.get('Url', 'N/A')}")
     else:
         print(f"    Link={link}")
-    print(f"    Summary={str(item.get('Summary',''))[:100]}")
-    print(f"    Published={item.get('field_0','')}")
+    print(f"    Abstract={str(item.get(F_ABSTRACT,''))[:100]}")
+    print(f"    Duration={item.get(F_DURATION,'')}")
+    print(f"    Published={item.get(F_PUBLISHED,'')}")
+    print(f"    yt_ID={item.get(F_YT_ID,'')}")
 
-# Now fetch ALL items using ID-based pagination (SP REST ignores $skip for large lists)
+# Fetch ALL items using ID-based pagination
 print("\nFetching all items with ID-based pagination...")
 all_items = []
 last_id = 0
 while True:
     batch = page.evaluate(f"""async () => {{
         const resp = await fetch(
-            "{SP_API}/items?$top=500&$filter=Id gt {last_id}&$select=Id,Title,Link,Summary&$orderby=Id",
+            "{SP_API}/items?$top=500&$filter=Id gt {last_id}&$select=Id,Title,Link,{F_ABSTRACT},{F_YT_ID}&$orderby=Id",
             {{ headers: {{ "Accept": "application/json;odata=nometadata" }} }}
         );
         return await resp.json();
@@ -97,12 +109,14 @@ for item in all_items:
         "id": item.get("Id"),
         "title": item.get("Title", ""),
         "url": url,
-        "summary": item.get("Summary", "") or ""
+        "abstract": item.get(F_ABSTRACT, "") or "",
+        "yt_id": item.get(F_YT_ID, "") or "",
     })
 
-with open(os.path.join(BASE, "sp_blogposts.json"), "w", encoding="utf-8") as f:
+out_file = os.path.join(BASE, "sp_videoposts.json")
+with open(out_file, "w", encoding="utf-8") as f:
     json.dump(sp_data, f, ensure_ascii=False, indent=2)
-print(f"Saved {len(sp_data)} items to sp_blogposts.json")
+print(f"Saved {len(sp_data)} items to sp_videoposts.json")
 
 page.close()
 p.stop()

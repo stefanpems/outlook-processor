@@ -22,6 +22,7 @@ Output:
 import sys, json, time, re, os
 from datetime import datetime, timedelta
 from playwright.sync_api import sync_playwright
+from cdp_helper import ensure_edge_cdp
 
 
 # ---------------------------------------------------------------------------
@@ -537,6 +538,7 @@ def main():
     print(f"=== Reading '{community_name}' — last {days} day(s) ===", file=sys.stderr)
 
     with sync_playwright() as p:
+        ensure_edge_cdp()
         browser = p.chromium.connect_over_cdp(cdp_url)
         context = browser.contexts[0]
         page = context.new_page()

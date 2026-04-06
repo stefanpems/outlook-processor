@@ -50,15 +50,11 @@ Read `config.json` to get:
 
 ### Step 2 — Blog Email Digest
 
-Follow the **blog-email-report** skill procedure:
+Execute the **blog-notifications** skill in **Digest mode (standard)** for the computed date range. This ensures all blog notification emails in the period are registered in SharePoint (creating or completing SP items as needed) before generating and sending the HTML digest.
 
-```bash
-python pipeline_email_report.py --from-date {DATE_FROM} --to-date {DATE_TO}
-```
+Follow the full blog-notifications Digest mode procedure (Steps 0–5). The digest email is sent automatically as part of Step 5.
 
-If `total_items > 0`, send the email via `send_email` MCP tool to `email_report.default_recipients` with the generated HTML.
-
-If `total_items == 0`, inform the user and proceed to Step 3 (do not send an empty blog digest).
+If no blog items exist in SP for the date range after processing, inform the user and proceed to Step 3 (do not send an empty blog digest).
 
 ### Step 3 — Viva Engage Conversations Digest
 

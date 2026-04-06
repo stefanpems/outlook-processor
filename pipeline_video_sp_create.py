@@ -1,9 +1,10 @@
 """
-Create a new BlogPosts item in SharePoint via REST API.
+Create a new VideoPosts item in SharePoint via REST API.
 Connects to Edge via CDP to reuse auth context.
 
-Usage: python pipeline_sp_create.py <json_file>
-  The JSON file must contain: title, published_date, summary, topic, tech, blog_link
+Usage:
+  echo '{"title":"...","published_date":"...","abstract":"...","topic":"...","tech":"...","video_link":"...","duration":"...","yt_id":"..."}' | python pipeline_video_sp_create.py -
+  echo '{"abstract":"...","title":"..."}' | python pipeline_video_sp_create.py --update-abstract <sp_id> -
 
 Output: JSON to stdout with ok, id, title, link_warning.
 """
@@ -17,9 +18,11 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 CONFIG = json.load(open(os.path.join(BASE, "config.json"), encoding="utf-8"))
 
 CDP_URL = CONFIG["edge_cdp"]["url"]
-SP_API = CONFIG["sharepoint"]["blog_list_api"]
-SP_ENTITY_TYPE = CONFIG["sharepoint"]["blog_list_entity_type"]
+SP_API = CONFIG["video_sharepoint"]["list_api"]
+SP_ENTITY_TYPE = CONFIG["video_sharepoint"]["list_entity_type"]
 SP_SITE_BASE = CONFIG["sharepoint"]["site_base"]
+SP_LIST_URL = CONFIG["video_sharepoint"]["list_url"]
+FIELDS = CONFIG["video_sharepoint"]["fields"]
 SOURCE_MAP = {k: int(v) for k, v in CONFIG["source_map"].items()}
 TECH_MAP_IDS = {k: int(v) for k, v in CONFIG["tech_map"].items()}
 
@@ -52,14 +55,15 @@ def get_digest(page):
 
 
 def create_sp_item(page, digest, item_data):
-    """Create a new item in the BlogPosts SP list.
-    Returns dict with ok, id, title, link_warning."""
+    """Create a new item in the VideoPosts SP list."""
     published = item_data.get("published_date", "").replace("-", ".")
     title = item_data.get("title", "")
     topic = item_data.get("topic", "")
     tech_str = item_data.get("tech", "")
-    link = item_data.get("blog_link", "")
-    summary = item_data.get("summary", "")
+    link = item_data.get("video_link", "")
+    abstract = item_data.get("abstract", "")
+    duration = item_data.get("duration", "")
+    yt_id = item_data.get("yt_id", "")
 
     source_id = SOURCE_MAP.get(topic)
     tech_ids = get_tech_ids(tech_str)
@@ -67,12 +71,14 @@ def create_sp_item(page, digest, item_data):
     body = {
         "__metadata": {"type": SP_ENTITY_TYPE},
         "Title": title,
-        "field_0": published,
-        "Summary": summary,
-        "Notes": "by Agent",
+        FIELDS["published"]: published,
+        FIELDS["abstract"]: abstract,
+        FIELDS["duration"]: duration,
     }
+    if yt_id:
+        body[FIELDS["yt_id"]] = yt_id
     if source_id:
-        body["SourceNewId"] = source_id
+        body["SourceId"] = source_id
     if tech_ids:
         body["TechId"] = {"results": tech_ids}
 
@@ -104,7 +110,7 @@ def create_sp_item(page, digest, item_data):
         }}
     }}""")
 
-    # If created, update Link field via MERGE (SP.FieldUrlValue can't be set in POST)
+    # Update Link field via MERGE (SP.FieldUrlValue can't be set in POST)
     if result.get("ok") and link:
         new_id = result["id"]
         link_body = json.dumps({
@@ -143,36 +149,13 @@ def create_sp_item(page, digest, item_data):
     return result
 
 
-def delete_sp_item(page, digest, sp_id):
-    """Delete an SP item by ID."""
-    result = page.evaluate(f"""async () => {{
-        try {{
-            const resp = await fetch(
-                "{SP_API}/items({sp_id})",
-                {{
-                    method: "POST",
-                    headers: {{
-                        "Accept": "application/json;odata=verbose",
-                        "X-RequestDigest": `{digest}`,
-                        "IF-MATCH": "*",
-                        "X-HTTP-Method": "DELETE"
-                    }}
-                }}
-            );
-            return {{ ok: resp.ok, status: resp.status }};
-        }} catch(e) {{
-            return {{ ok: false, error: e.message }};
-        }}
-    }}""")
-    return result
-
-
-def update_sp_summary(page, digest, sp_id, summary):
-    """Update the Summary field on an existing SP item via MERGE."""
-    summary_esc = json.dumps({
+def update_sp_abstract(page, digest, sp_id, abstract):
+    """Update the Abstract field on an existing SP item via MERGE."""
+    body = {
         "__metadata": {"type": SP_ENTITY_TYPE},
-        "Summary": summary
-    }).replace("\\", "\\\\").replace("`", "\\`").replace("${", "\\${")
+        FIELDS["abstract"]: abstract
+    }
+    body_esc = json.dumps(body).replace("\\", "\\\\").replace("`", "\\`").replace("${", "\\${")
 
     result = page.evaluate(f"""async () => {{
         try {{
@@ -187,7 +170,7 @@ def update_sp_summary(page, digest, sp_id, summary):
                         "IF-MATCH": "*",
                         "X-HTTP-Method": "MERGE"
                     }},
-                    body: `{summary_esc}`
+                    body: `{body_esc}`
                 }}
             );
             return {{ ok: resp.ok, status: resp.status }};
@@ -198,28 +181,115 @@ def update_sp_summary(page, digest, sp_id, summary):
     return result
 
 
+def update_sp_all_fields(page, digest, sp_id, item_data):
+    """Update ALL fields on an existing SP item via MERGE (reprocess mode).
+    Also updates Link via a separate MERGE (SP.FieldUrlValue)."""
+    published = item_data.get("published_date", "").replace("-", ".")
+    title = item_data.get("title", "")
+    topic = item_data.get("topic", "")
+    tech_str = item_data.get("tech", "")
+    link = item_data.get("video_link", "")
+    abstract = item_data.get("abstract", "")
+    duration = item_data.get("duration", "")
+    yt_id = item_data.get("yt_id", "")
+
+    source_id = SOURCE_MAP.get(topic)
+    tech_ids = get_tech_ids(tech_str)
+
+    body = {
+        "__metadata": {"type": SP_ENTITY_TYPE},
+        "Title": title,
+        FIELDS["published"]: published,
+        FIELDS["abstract"]: abstract,
+        FIELDS["duration"]: duration,
+    }
+    if yt_id:
+        body[FIELDS["yt_id"]] = yt_id
+    if source_id:
+        body["SourceId"] = source_id
+    if tech_ids:
+        body["TechId"] = {"results": tech_ids}
+
+    body_esc = json.dumps(body).replace("\\", "\\\\").replace("`", "\\`").replace("${", "\\${")
+
+    result = page.evaluate(f"""async () => {{
+        try {{
+            const resp = await fetch(
+                "{SP_API}/items({sp_id})",
+                {{
+                    method: "POST",
+                    headers: {{
+                        "Accept": "application/json;odata=verbose",
+                        "Content-Type": "application/json;odata=verbose",
+                        "X-RequestDigest": `{digest}`,
+                        "IF-MATCH": "*",
+                        "X-HTTP-Method": "MERGE"
+                    }},
+                    body: `{body_esc}`
+                }}
+            );
+            return {{ ok: resp.ok, status: resp.status }};
+        }} catch(e) {{
+            return {{ ok: false, error: e.message }};
+        }}
+    }}""")
+
+    # Update Link field separately (SP.FieldUrlValue)
+    if result.get("ok", True) and link:
+        link_body = json.dumps({
+            "__metadata": {"type": SP_ENTITY_TYPE},
+            "Link": {
+                "__metadata": {"type": "SP.FieldUrlValue"},
+                "Url": link,
+                "Description": link
+            }
+        })
+        link_esc = link_body.replace("\\", "\\\\").replace("`", "\\`").replace("${", "\\${")
+        link_result = page.evaluate(f"""async () => {{
+            try {{
+                const resp = await fetch(
+                    "{SP_API}/items({sp_id})",
+                    {{
+                        method: "POST",
+                        headers: {{
+                            "Accept": "application/json;odata=verbose",
+                            "Content-Type": "application/json;odata=verbose",
+                            "X-RequestDigest": `{digest}`,
+                            "IF-MATCH": "*",
+                            "X-HTTP-Method": "MERGE"
+                        }},
+                        body: `{link_esc}`
+                    }}
+                );
+                return {{ ok: resp.ok, status: resp.status }};
+            }} catch(e) {{
+                return {{ ok: false, error: e.message }};
+            }}
+        }}""")
+        if not link_result.get("ok"):
+            result["link_warning"] = f"Link update failed: {link_result}"
+
+    return result
+
+
 def main():
-    # Parse arguments
-    mode = "create"  # default
+    mode = "create"
     sp_id_to_update = None
-    delete_ids = []
 
     args = sys.argv[1:]
-    if len(args) >= 2 and args[0] == "--update-summary":
-        mode = "update-summary"
+    if len(args) >= 2 and args[0] == "--update-abstract":
+        mode = "update-abstract"
         sp_id_to_update = int(args[1])
         args = args[2:]
-    elif len(args) >= 2 and args[0] == "--delete":
-        mode = "delete"
-        delete_ids = [int(x) for x in args[1].split(",")]
+    elif len(args) >= 2 and args[0] == "--update-all":
+        mode = "update-all"
+        sp_id_to_update = int(args[1])
         args = args[2:]
 
     if args and args[0] != "-":
         item_data = json.load(open(args[0], encoding="utf-8"))
-    elif mode != "delete":
-        item_data = json.load(sys.stdin)
     else:
-        item_data = {}
+        item_data = json.load(sys.stdin)
 
     p = sync_playwright().start()
     try:
@@ -227,27 +297,21 @@ def main():
         browser = p.chromium.connect_over_cdp(CDP_URL)
         ctx = browser.contexts[0]
         sp_page = ctx.new_page()
-        sp_page.goto(
-            CONFIG["sharepoint"]["blog_list_url"],
-            wait_until="domcontentloaded", timeout=30000
-        )
+        sp_page.goto(SP_LIST_URL, wait_until="domcontentloaded", timeout=30000)
         sp_page.wait_for_timeout(3000)
         digest = get_digest(sp_page)
 
-        if mode == "update-summary":
-            summary = item_data.get("summary", "")
-            print(f"Updating summary on SP item {sp_id_to_update}: {item_data.get('title','')[:70]}", file=sys.stderr)
-            result = update_sp_summary(sp_page, digest, sp_id_to_update, summary)
+        if mode == "update-abstract":
+            abstract = item_data.get("abstract", "")
+            print(f"Updating abstract on SP item {sp_id_to_update}: {item_data.get('title','')[:70]}", file=sys.stderr)
+            result = update_sp_abstract(sp_page, digest, sp_id_to_update, abstract)
             result["id"] = sp_id_to_update
-            result["mode"] = "update-summary"
-        elif mode == "delete":
-            results = []
-            for did in delete_ids:
-                print(f"Deleting SP item {did}...", file=sys.stderr)
-                r = delete_sp_item(sp_page, digest, did)
-                r["id"] = did
-                results.append(r)
-            result = {"mode": "delete", "results": results}
+            result["mode"] = "update-abstract"
+        elif mode == "update-all":
+            print(f"Updating all fields on SP item {sp_id_to_update}: {item_data.get('title','')[:70]}", file=sys.stderr)
+            result = update_sp_all_fields(sp_page, digest, sp_id_to_update, item_data)
+            result["id"] = sp_id_to_update
+            result["mode"] = "update-all"
         else:
             print(f"Creating SP item: {item_data.get('title','')[:70]}", file=sys.stderr)
             result = create_sp_item(sp_page, digest, item_data)

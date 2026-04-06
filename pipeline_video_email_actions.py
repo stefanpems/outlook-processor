@@ -1,12 +1,12 @@
 """
-Categorize and/or move a single email in Outlook Web via Playwright CDP.
-Reuses the tested patterns from legacy_batch_all.py for safe email selection,
-categorization (Italian labels), and move via keyboard navigation.
+Categorize and/or move a single video email in Outlook Web via Playwright CDP.
+Video variant of pipeline_email_actions.py — uses video_outlook config,
+searches for [Video- prefix, uses "By agent - Video" category.
 
 Usage:
-  python pipeline_email_actions.py categorize <email_title>
-  python pipeline_email_actions.py move <email_title>
-  python pipeline_email_actions.py both <email_title>
+  python pipeline_video_email_actions.py categorize <email_title>
+  python pipeline_video_email_actions.py move <email_title>
+  python pipeline_video_email_actions.py both <email_title>
 
 Output: JSON to stdout with categorized, moved, emails_found.
 """
@@ -20,20 +20,20 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 CONFIG = json.load(open(os.path.join(BASE, "config.json"), encoding="utf-8"))
 
 CDP_URL = CONFIG["edge_cdp"]["url"]
-SENDER = CONFIG["outlook"]["sender"]
-SUBJECT_PREFIX = CONFIG["outlook"]["subject_prefix"]
-CATEGORY = CONFIG["outlook"]["processed_category"]
-TARGET_FOLDER = CONFIG["outlook"]["target_folder"]
-EXCLUDE_TERMS = CONFIG["outlook"].get("exclude_terms", [])
+SENDER = CONFIG["video_outlook"]["sender"]
+SUBJECT_PREFIX = CONFIG["video_outlook"]["subject_prefix"]
+CATEGORY = CONFIG["video_outlook"]["processed_category"]
+TARGET_FOLDER = CONFIG["video_outlook"]["target_folder"]
+EXCLUDE_TERMS = CONFIG["video_outlook"].get("exclude_terms", [])
 
 
 def do_search(page, title):
-    """Search Outlook for a specific blog email. Returns count of results."""
+    """Search Outlook for a specific video email. Returns count of results."""
     safe = re.sub(r'["\u2018\u2019\u201c\u201d\u2013\u2014]', ' ', title)
     safe = re.sub(r'\s+', ' ', safe).strip()
     words = safe.split()
     short = " ".join(words[:6]) if len(words) > 6 else safe
-    query = f'from:{SENDER} subject:({SUBJECT_PREFIX} {short}) -"By agent - Blog"'
+    query = f'from:{SENDER} subject:({SUBJECT_PREFIX} {short}) -"{CATEGORY}"'
     for term in EXCLUDE_TERMS:
         query += f' -{term}'
 
@@ -58,8 +58,8 @@ def do_search(page, title):
     return len(rows)
 
 
-def select_blog_emails(page):
-    """Select only email rows whose subject contains [Blog-]. NEVER Ctrl+A."""
+def select_video_emails(page):
+    """Select only email rows whose subject contains [Video-]. NEVER Ctrl+A."""
     rows = page.query_selector_all("div[role='option']")
     if not rows:
         return []
@@ -70,14 +70,13 @@ def select_blog_emails(page):
             text = row.inner_text()
         except Exception:
             continue
-        if "[Blog-" not in text:
+        if "[Video-" not in text:
             continue
         matched.append(row)
 
     if not matched:
         return []
 
-    # Click first match
     try:
         matched[0].click(timeout=5000)
     except Exception:
@@ -88,7 +87,6 @@ def select_blog_emails(page):
             return []
     page.wait_for_timeout(300)
 
-    # Ctrl+click remaining matches
     for row in matched[1:]:
         try:
             box = row.bounding_box()
@@ -106,7 +104,7 @@ def select_blog_emails(page):
 
 
 def has_category(page):
-    """Check if the currently displayed email in the reading pane has the processed category."""
+    """Check if the currently displayed email has the processed category."""
     try:
         rp_text = page.locator('[role="main"]').first.inner_text()
         return CATEGORY.lower() in rp_text.lower()
@@ -115,8 +113,7 @@ def has_category(page):
 
 
 def get_current_row_folder(page):
-    """Get folder name from the currently selected row's preview text.
-    In search results, the folder appears as the last segment of the row text."""
+    """Get folder name from the currently selected row's preview text."""
     row = page.query_selector("div[role='option'][aria-selected='true']")
     if not row:
         rows = page.query_selector_all("div[role='option']")
@@ -142,10 +139,8 @@ def do_categorize_one(page, row):
         box = row.bounding_box()
         if not box:
             return False
-        # Single-click first to ensure only this row is selected
         page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
         page.wait_for_timeout(400)
-        # Right-click for context menu
         page.mouse.click(
             box["x"] + box["width"] / 2,
             box["y"] + box["height"] / 2,
@@ -155,7 +150,6 @@ def do_categorize_one(page, row):
         return False
     page.wait_for_timeout(1500)
 
-    # Find "Categorizza" menu item
     cat_btn = None
     for item in page.query_selector_all("[role='menuitem']"):
         try:
@@ -172,7 +166,6 @@ def do_categorize_one(page, row):
     cat_btn.evaluate("el => el.click()")
     page.wait_for_timeout(1500)
 
-    # Find and click the category
     for sub in page.query_selector_all("[role='menuitemcheckbox'], [role='menuitem']"):
         try:
             txt = sub.inner_text().strip()
@@ -211,7 +204,6 @@ def go_home_tab(page):
 
 def do_move_one(page, row):
     """Move a single email row to the target folder via top toolbar Sposta button."""
-    # Single-click to select only this row
     try:
         box = row.bounding_box()
         if box:
@@ -223,7 +215,6 @@ def do_move_one(page, row):
     go_home_tab(page)
     page.wait_for_timeout(500)
 
-    # Find Sposta button in top toolbar (y < 200)
     sposta_btn = None
     for btn in page.query_selector_all("button"):
         try:
@@ -241,7 +232,6 @@ def do_move_one(page, row):
             pass
 
     if not sposta_btn:
-        # Fallback: look for aria-haspopup buttons
         for btn in page.query_selector_all("button[aria-haspopup], button[aria-expanded]"):
             try:
                 if not btn.is_visible():
@@ -262,7 +252,6 @@ def do_move_one(page, row):
     sposta_btn.click()
     page.wait_for_timeout(2000)
 
-    # Find folder search input
     search_input = page.query_selector(
         "input[placeholder*='erca una cartella'], input[placeholder*='Search folder']"
     )
@@ -287,7 +276,6 @@ def do_move_one(page, row):
     search_input.fill(TARGET_FOLDER)
     page.wait_for_timeout(3000)
 
-    # Select first result via keyboard
     page.keyboard.press("ArrowDown")
     page.wait_for_timeout(500)
     page.keyboard.press("Enter")
@@ -297,13 +285,13 @@ def do_move_one(page, row):
 
 def main():
     if len(sys.argv) < 3:
-        print("Usage: python pipeline_email_actions.py <categorize|move|both> <email_title>")
+        print("Usage: python pipeline_video_email_actions.py <categorize|move|both> <email_title>")
         sys.exit(1)
 
     action = sys.argv[1].lower()
     title = sys.argv[2]
 
-    print(f"Processing email: {title[:70]}", file=sys.stderr)
+    print(f"Processing video email: {title[:70]}", file=sys.stderr)
 
     p = sync_playwright().start()
     try:
@@ -311,7 +299,6 @@ def main():
         browser = p.chromium.connect_over_cdp(CDP_URL)
         ctx = browser.contexts[0]
 
-        # Find or create Outlook tab
         page = None
         for pg in ctx.pages:
             if "outlook.office.com" in pg.url or "outlook.cloud.microsoft" in pg.url:
@@ -336,28 +323,25 @@ def main():
             print(json.dumps(result, indent=2))
             return
 
-        matched = select_blog_emails(page)
+        matched = select_video_emails(page)
         if not matched:
-            result["error"] = "No [Blog-] emails in results"
+            result["error"] = "No [Video-] emails in results"
             print(json.dumps(result, indent=2))
             return
 
-        result["blog_emails"] = len(matched)
+        result["video_emails"] = len(matched)
 
-        # Process each matched email individually
         cat_count = 0
         mov_count = 0
         for i, row in enumerate(matched):
-            # Re-fetch rows since DOM changes after move
             if i > 0:
                 page.wait_for_timeout(1500)
                 rows = page.query_selector_all("div[role='option']")
-                blog_rows = [r for r in rows if "[Blog-" in (r.inner_text() or "")]
-                if not blog_rows:
+                video_rows = [r for r in rows if "[Video-" in (r.inner_text() or "")]
+                if not video_rows:
                     break
-                row = blog_rows[0]  # always take first remaining
+                row = video_rows[0]
 
-            # Click to select and load reading pane
             try:
                 box = row.bounding_box()
                 if box:
@@ -366,7 +350,6 @@ def main():
             except Exception:
                 continue
 
-            # Dual check: skip if already categorized AND in target folder
             already_cat = has_category(page)
             row_folder = get_current_row_folder(page)
             in_target = TARGET_FOLDER.lower() in row_folder.lower()
@@ -386,15 +369,12 @@ def main():
                 page.wait_for_timeout(500)
 
             if needs_move:
-                # Re-fetch the row since categorize may have changed DOM
                 rows = page.query_selector_all("div[role='option']")
-                blog_rows = [r for r in rows if "[Blog-" in (r.inner_text() or "")]
-                if blog_rows:
-                    mov_ok = do_move_one(page, blog_rows[0])
+                video_rows = [r for r in rows if "[Video-" in (r.inner_text() or "")]
+                if video_rows:
+                    mov_ok = do_move_one(page, video_rows[0])
                     if mov_ok:
                         mov_count += 1
-                    # After move, the email disappears and the next is auto-selected.
-                    # Do NOT re-fetch — the loop will re-fetch at the top of next iteration.
                     page.wait_for_timeout(2000)
 
         result["categorized"] = cat_count > 0
@@ -405,7 +385,6 @@ def main():
         print(json.dumps(result, indent=2))
 
     except Exception as ex:
-        # Try to recover
         try:
             page.keyboard.press("Escape")
             page.wait_for_timeout(300)

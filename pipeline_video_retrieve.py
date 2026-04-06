@@ -1,9 +1,12 @@
 """
-Retrieve all blog notification emails from Outlook Web for a date range.
+Retrieve all video notification emails from Outlook Web for a date range.
 Connects to Edge via CDP, searches Outlook, scrolls virtualized list,
 extracts email data from reading pane.
 
-Usage: python pipeline_retrieve.py YYYY-MM-DD YYYY-MM-DD
+Video variant of pipeline_retrieve.py — uses video_outlook config,
+searches for [Video- prefix, extracts YouTube links.
+
+Usage: python pipeline_video_retrieve.py YYYY-MM-DD YYYY-MM-DD [--include-processed]
 Output: Saves results to session_state.json and prints summary JSON.
 """
 import json, re, os, sys
@@ -16,10 +19,10 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 CONFIG = json.load(open(os.path.join(BASE, "config.json"), encoding="utf-8"))
 
 CDP_URL = CONFIG["edge_cdp"]["url"]
-SENDER = CONFIG["outlook"]["sender"]
-SUBJECT_PREFIX = CONFIG["outlook"]["subject_prefix"]
-CATEGORY = CONFIG["outlook"]["processed_category"]
-EXCLUDE_TERMS = CONFIG["outlook"].get("exclude_terms", [])
+SENDER = CONFIG["video_outlook"]["sender"]
+SUBJECT_PREFIX = CONFIG["video_outlook"]["subject_prefix"]
+CATEGORY = CONFIG["video_outlook"]["processed_category"]
+EXCLUDE_TERMS = CONFIG["video_outlook"].get("exclude_terms", [])
 SESSION_FILE = os.path.join(BASE, "session_state.json")
 
 
@@ -56,8 +59,7 @@ def connect_to_outlook():
 
 
 def search_emails(page, date_from, date_to, include_processed=False):
-    """Execute Outlook search for blog emails in date range. Returns visible count."""
-    # Force navigate to mail root to reset search state
+    """Execute Outlook search for video emails in date range."""
     page.evaluate("window.location.href = 'https://outlook.cloud.microsoft/mail/'")
     page.wait_for_timeout(4000)
 
@@ -78,7 +80,6 @@ def search_emails(page, date_from, date_to, include_processed=False):
     page.keyboard.press("Enter")
     page.wait_for_timeout(5000)
 
-    # Retry a few times — Outlook may take a moment to render results
     for attempt in range(4):
         items = page.locator('[role="listbox"] [role="option"]').all()
         if items:
@@ -128,18 +129,16 @@ def count_all_results(page):
 
 
 def get_reading_pane_fingerprint(page):
-    """Get a short fingerprint of the current reading pane content for change detection."""
+    """Get a short fingerprint of the current reading pane content."""
     try:
         rp_text = page.locator('[role="main"]').first.inner_text()
-        # Use first 300 chars as fingerprint (enough to detect change)
         return rp_text.strip()[:300]
     except Exception:
         return ""
 
 
 def wait_for_pane_change(page, old_fingerprint, max_wait_ms=5000):
-    """Wait until the reading pane content changes from old_fingerprint.
-    Returns True if change detected, False if timed out."""
+    """Wait until the reading pane content changes."""
     waited = 0
     step = 500
     while waited < max_wait_ms:
@@ -168,7 +167,6 @@ def extract_all_via_keyboard(page, total_count, include_processed=False):
             page.mouse.wheel(0, -500)
         page.wait_for_timeout(1000)
 
-    # Click the first item
     first = page.locator('[role="listbox"] [role="option"]').first
     first.click()
     page.wait_for_timeout(2000)
@@ -177,13 +175,11 @@ def extract_all_via_keyboard(page, total_count, include_processed=False):
         em = read_reading_pane(page)
 
         if em is None:
-            # Retry once with a longer wait
             page.wait_for_timeout(2000)
             em = read_reading_pane(page)
 
         if em:
             current_subject = em.get('subject', '')
-            # Detect stuck navigation (same email 5+ times in a row)
             if current_subject == last_subject:
                 stuck_count += 1
             else:
@@ -192,8 +188,6 @@ def extract_all_via_keyboard(page, total_count, include_processed=False):
 
             if stuck_count >= 5:
                 print(f"    [{i+1}/{total_count}] STUCK: navigation appears frozen at: {current_subject[:60]}")
-                print(f"    Attempting to unstick by scrolling listbox...")
-                # Try to unstick by scrolling the listbox down and clicking
                 lb_box = page.locator('[role="listbox"]').first.bounding_box()
                 if lb_box:
                     lx = lb_box['x'] + lb_box['width'] / 2
@@ -201,7 +195,6 @@ def extract_all_via_keyboard(page, total_count, include_processed=False):
                     page.mouse.move(lx, ly)
                     page.mouse.wheel(0, 300)
                     page.wait_for_timeout(1500)
-                    # Try clicking a different visible option
                     options = page.locator('[role="listbox"] [role="option"]').all()
                     if len(options) > 1:
                         options[-1].click()
@@ -210,14 +203,12 @@ def extract_all_via_keyboard(page, total_count, include_processed=False):
                         last_subject = ""
                         em = read_reading_pane(page)
                         if em is None:
-                            print(f"    [{i+1}/{total_count}] STILL NULL after unstick attempt")
                             null_count += 1
                             if i < total_count - 1:
                                 page.keyboard.press("ArrowDown")
                                 page.wait_for_timeout(1500)
                             continue
 
-            # Check if this email already has the processed category
             if include_processed or not has_processed_category(page):
                 emails.append(em)
             else:
@@ -229,28 +220,26 @@ def extract_all_via_keyboard(page, total_count, include_processed=False):
         if i < total_count - 1:
             fp_before = get_reading_pane_fingerprint(page)
             page.keyboard.press("ArrowDown")
-            # Wait for reading pane to actually change (up to 5s), then add small buffer
             changed = wait_for_pane_change(page, fp_before, max_wait_ms=5000)
             if not changed:
-                # Extra wait and retry
                 page.wait_for_timeout(1000)
             page.wait_for_timeout(500)
 
     if null_count > 0:
-        print(f"  WARNING: {null_count} items returned NULL from reading pane (silently missed)")
+        print(f"  WARNING: {null_count} items returned NULL from reading pane")
 
     return emails
 
 
 def read_reading_pane(page):
-    """Extract email data from the current reading pane."""
+    """Extract email data from the current reading pane (video variant)."""
     try:
         rp = page.locator('[role="main"]').first
         rp_text = rp.inner_text()
     except Exception:
         return None
 
-    # Subject: find line with [Blog-
+    # Subject: find line with [Video-
     subject = ""
     for line in rp_text.split("\n"):
         line = line.strip()
@@ -267,30 +256,39 @@ def read_reading_pane(page):
         parts = m.group(1).split("/")
         received_date = f"{parts[2]}-{parts[1]}-{parts[0]}T{m.group(2)}:00"
 
-    # Blog link
-    blog_link = ""
+    # Video link — prioritize YouTube URLs
+    video_link = ""
     try:
         for link in page.locator('[role="main"] a[href]').all():
             href = link.get_attribute("href") or ""
             if href.startswith("http") and (
-                "microsoft.com" in href.lower()
-                or "azure.com" in href.lower()
-                or "techcommunity" in href.lower()
+                "youtube.com" in href.lower()
+                or "youtu.be" in href.lower()
             ):
-                blog_link = href
+                video_link = href
                 break
+        # Fallback: any non-infrastructure link
+        if not video_link:
+            for link in page.locator('[role="main"] a[href]').all():
+                href = link.get_attribute("href") or ""
+                if href.startswith("http") and not any(x in href.lower() for x in [
+                    "flow.microsoft.com", "powerautomate",
+                    "aka.ms/LearnAboutSenderIdentification",
+                ]):
+                    video_link = href
+                    break
     except Exception:
         pass
 
     # Parse topic and title from subject
     title = subject.split("]", 1)[-1].strip() if "]" in subject else subject
-    topic_match = re.search(r'\[Blog-([^\]]+)\]', subject)
+    topic_match = re.search(r'\[Video-([^\]]+)\]', subject)
     topic = topic_match.group(1) if topic_match else ""
 
     return {
         "subject": subject,
         "received_date": received_date,
-        "blog_link": blog_link,
+        "video_link": video_link,
         "title": title,
         "topic": topic,
     }
@@ -306,18 +304,17 @@ def has_processed_category(page):
 
 
 def main():
-    # Parse --include-processed flag
     args = [a for a in sys.argv[1:] if a != "--include-processed"]
     include_processed = "--include-processed" in sys.argv
 
     if len(args) < 2:
-        print("Usage: python pipeline_retrieve.py YYYY-MM-DD YYYY-MM-DD [--include-processed]")
+        print("Usage: python pipeline_video_retrieve.py YYYY-MM-DD YYYY-MM-DD [--include-processed]")
         sys.exit(1)
 
     date_from = args[0]
     date_to = args[1]
     mode_label = " (including already-processed)" if include_processed else ""
-    print(f"=== Retrieving emails from {date_from} to {date_to}{mode_label} ===")
+    print(f"=== Retrieving video emails from {date_from} to {date_to}{mode_label} ===")
 
     p, browser, page = connect_to_outlook()
 
@@ -334,22 +331,18 @@ def main():
 
         emails = extract_all_via_keyboard(page, total_count, include_processed=include_processed)
 
-        # Deduplicate by email identity (subject + date + link).
-        # Outlook "Risultati principali" section duplicates emails from later sections.
-        # This removes those duplicates while keeping distinct emails with same subject.
+        # Deduplicate by email identity (subject + date + link)
         seen_keys = set()
         unique_emails = []
         for em in emails:
-            key = (em.get("subject", ""), em.get("received_date", ""), em.get("blog_link", ""))
+            key = (em.get("subject", ""), em.get("received_date", ""), em.get("video_link", ""))
             if key not in seen_keys:
                 seen_keys.add(key)
                 unique_emails.append(em)
         if len(unique_emails) < len(emails):
-            print(f"  Removed {len(emails) - len(unique_emails)} duplicates from 'Risultati principali' section")
+            print(f"  Removed {len(emails) - len(unique_emails)} duplicates")
         emails = unique_emails
 
-        # Keep all emails — duplicates are handled by session/SP dup checks.
-        # Each email instance still needs to be categorized + moved.
         emails.sort(key=lambda e: e.get("received_date", ""), reverse=True)
         print(f"  Extracted {len(emails)} emails (excl. already-categorized)")
 
@@ -368,7 +361,6 @@ def main():
         print(json.dumps(result, indent=2))
 
     finally:
-        # Don't close Edge pages; just disconnect playwright
         p.stop()
 
 

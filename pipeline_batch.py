@@ -19,6 +19,7 @@ Design principles:
 import json, re, os, sys, time, subprocess
 from collections import defaultdict
 from playwright.sync_api import sync_playwright
+from cdp_helper import ensure_edge_cdp
 
 sys.stdout = open(sys.stdout.fileno(), mode="w", buffering=1)
 
@@ -286,6 +287,7 @@ def phase_email_actions(session):
 
     p = sync_playwright().start()
     try:
+        ensure_edge_cdp()
         browser = p.chromium.connect_over_cdp(CDP_URL)
         ctx = browser.contexts[0]
         page = ctx.new_page()

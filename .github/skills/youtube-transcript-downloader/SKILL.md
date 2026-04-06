@@ -17,7 +17,7 @@ The script uses **Playwright CDP connected to the Edge debug instance** to:
 1. Navigate to the YouTube video page inside the authenticated Edge browser
 2. Open the transcript panel (via description expand, three-dot menu, or JS fallback)
 3. Scrape all `ytd-transcript-segment-renderer` elements from the DOM
-4. Save the text to `transcript_<VIDEO_ID>.txt`
+4. Save the text to `yt_<VIDEO_ID>.txt`
 
 This approach bypasses the YouTube `timedtext` API rate limiting (429 errors) because the transcript data is loaded by YouTube's own frontend within the browser session — no additional API calls are made.
 
@@ -39,7 +39,7 @@ This approach bypasses the YouTube `timedtext` API rate limiting (429 errors) be
 
 ### Output
 
-- File: `yt_transcripts/yt_<VIDEO_ID>_<YYYY-MM-DD>.txt` — naming convention: `yt_` prefix + video ID + download date
+- File: `yt_transcripts/yt_<VIDEO_ID>.txt` — naming convention: `yt_` prefix + video ID
 - The `yt_transcripts/` directory is created automatically and listed in `.gitignore`
 - Last line of stdout is a JSON object: `{"video_id": "...", "title": "...", "file": "...", "chars": ...}`
 

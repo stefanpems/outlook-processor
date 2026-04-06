@@ -1,14 +1,13 @@
 """
-Build an HTML email digest of blog posts from the SharePoint BlogPosts list,
+Build an HTML email digest of video posts from the SharePoint VideoPosts list,
 grouped by topic, and save it to the output directory.
 
 Usage:
-  python pipeline_email_report.py [--from-date YYYY-MM-DD] [--to-date YYYY-MM-DD] [--tech "tech1,tech2"]
+  python pipeline_video_email_report.py [--from-date YYYY-MM-DD] [--to-date YYYY-MM-DD]
 
 Defaults:
   --from-date : yesterday
   --to-date   : yesterday
-  --tech      : (empty = all items)
 
 Output: JSON to stdout with html_path, subject, total_items, topics_count.
 """
@@ -23,8 +22,13 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 CONFIG = json.load(open(os.path.join(BASE, "config.json"), encoding="utf-8"))
 
 CDP_URL = CONFIG["edge_cdp"]["url"]
-SP_API = CONFIG["sharepoint"]["blog_list_api"]
-SP_LIST_URL = CONFIG["sharepoint"]["blog_list_url"]
+SP_API = CONFIG["video_sharepoint"]["list_api"]
+SP_LIST_URL = CONFIG["video_sharepoint"]["list_url"]
+FIELDS = CONFIG["video_sharepoint"]["fields"]
+F_PUBLISHED = FIELDS["published"]
+F_ABSTRACT = FIELDS["abstract"]
+F_DURATION = FIELDS["duration"]
+F_YT_ID = FIELDS["yt_id"]
 COLOR_PALETTE = CONFIG.get("topic_color_palette", [
     "#F0E6D3", "#D3E8F0", "#D3F0D6", "#F0D3E6", "#E6F0D3", "#D3D8F0",
     "#F0DAD3", "#D3F0EA", "#E8D3F0", "#F0F0D3", "#D3EAF0", "#E6D3F0",
@@ -42,32 +46,31 @@ def get_topic_color(topic):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Build blog digest HTML from SP.")
+    parser = argparse.ArgumentParser(description="Build video digest HTML from SP.")
     yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
     parser.add_argument("--from-date", default=yesterday,
                         help="Start date YYYY-MM-DD (default: yesterday)")
     parser.add_argument("--to-date", default=yesterday,
                         help="End date YYYY-MM-DD (default: yesterday)")
-    parser.add_argument("--tech", default="",
-                        help="Comma-separated technologies to filter by")
     parser.add_argument("--recipients", default="",
                         help="Semicolon-separated email addresses (default: from config.json)")
     return parser.parse_args()
 
 
-def fetch_items(page, date_from_dot, date_to_dot, tech_filter):
-    """Fetch SP items with expanded lookups, filtered by date range."""
+def fetch_items(page, date_from_dot, date_to_dot):
+    """Fetch SP VideoPosts items with expanded lookups, filtered by date range."""
     all_items = []
     last_id = 0
-    filter_clause = f"field_0 ge '{date_from_dot}' and field_0 le '{date_to_dot}'"
+    filter_clause = f"{F_PUBLISHED} ge '{date_from_dot}' and {F_PUBLISHED} le '{date_to_dot}'"
 
     while True:
         full_filter = f"Id gt {last_id} and {filter_clause}"
         url = (
             f"{SP_API}/items?$top=500"
             f"&$filter={full_filter}"
-            f"&$select=Id,Title,Link,Summary,field_0,SourceNew/Title,Tech/Title"
-            f"&$expand=SourceNew,Tech"
+            f"&$select=Id,Title,Link,{F_ABSTRACT},{F_PUBLISHED},{F_DURATION},{F_YT_ID},"
+            f"Source/Title,Tech/Title"
+            f"&$expand=Source,Tech"
             f"&$orderby=Id"
         )
 
@@ -93,8 +96,8 @@ def fetch_items(page, date_from_dot, date_to_dot, tech_filter):
         link = item.get("Link", {})
         url = link.get("Url", "") if isinstance(link, dict) else str(link or "")
 
-        source_new = item.get("SourceNew")
-        topic = source_new.get("Title", "") if isinstance(source_new, dict) else ""
+        source = item.get("Source")
+        topic = source.get("Title", "") if isinstance(source, dict) else ""
 
         tech_list = item.get("Tech", []) or []
         techs = []
@@ -103,20 +106,16 @@ def fetch_items(page, date_from_dot, date_to_dot, tech_filter):
                 if isinstance(t, dict):
                     techs.append(t.get("Title", ""))
 
-        # Apply tech filter (case-insensitive substring match on tech labels)
-        if tech_filter:
-            tech_lower = [t.lower() for t in techs]
-            if not any(tf.lower() in tech_lower for tf in tech_filter):
-                continue
-
         results.append({
             "id": item.get("Id"),
             "title": item.get("Title", ""),
             "url": url,
-            "summary": item.get("Summary", "") or "",
-            "published": item.get("field_0", ""),
+            "abstract": item.get(F_ABSTRACT, "") or "",
+            "published": item.get(F_PUBLISHED, ""),
             "topic": topic or "Unknown",
             "techs": techs,
+            "duration": item.get(F_DURATION, "") or "",
+            "yt_id": item.get(F_YT_ID, "") or "",
         })
 
     return results
@@ -124,6 +123,7 @@ def fetch_items(page, date_from_dot, date_to_dot, tech_filter):
 
 # ---------------------------------------------------------------------------
 # CSS — compatible with Outlook / OWA email rendering
+# (same as pipeline_email_report.py blog digest)
 # ---------------------------------------------------------------------------
 CSS = """\
 body {
@@ -194,12 +194,18 @@ h1 {
   font-size: 12px; color: #4361ee; margin-left: 6px;
   display: inline-block;
 }
+.duration-tag {
+  background-color: #fff3e0; padding: 2px 10px; border-radius: 10px;
+  font-size: 12px; color: #e65100; margin-left: 6px;
+  display: inline-block;
+}
 .article-summary {
   font-size: 14px; line-height: 1.55; color: #333;
 }
 .article-summary b { color: #1a1a2e; }
 .article-summary ul { margin: 6px 0 6px 20px; padding: 0; }
 .article-summary li { margin-bottom: 3px; }
+.article-summary a { color: #4361ee; text-decoration: none; }
 .back-link {
   display: inline-block; margin-top: 10px; color: #4361ee;
   font-size: 13px; text-decoration: none; font-weight: 600;
@@ -212,7 +218,7 @@ h1 {
 """
 
 
-def build_html(items, date_from, date_to, tech_filter):
+def build_html(items, date_from, date_to):
     """Build HTML report grouped by topic."""
 
     # Group by topic
@@ -222,7 +228,7 @@ def build_html(items, date_from, date_to, tech_filter):
 
     sorted_topics = sorted(topics.keys())
 
-    # Sort articles: published date descending, then title ascending (stable sort)
+    # Sort articles: published date descending, then title ascending
     for t in sorted_topics:
         topics[t].sort(key=lambda e: e.get("title", "").lower())
         topics[t].sort(key=lambda e: e.get("published", "") or "0000.00.00", reverse=True)
@@ -233,22 +239,20 @@ def build_html(items, date_from, date_to, tech_filter):
 
     h = []
     h.append('<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">')
-    h.append(f'<title>PescoPedia Blog Digest - {date_label_html}</title>')
+    h.append(f'<title>PescoPedia Video Digest - {date_label_html}</title>')
     h.append(f'<style>\n{CSS}</style>')
     h.append('</head><body>')
     h.append('<div class="wrapper">')
 
     # Header
-    h.append(f'<h1>PescoPedia Blog Digest</h1>')
-    h.append(f'<p style="font-size:15px;color:#555;margin:-12px 0 20px 0;">{date_label_html}</p>')
+    h.append('<h1>PescoPedia Video Digest</h1>')
+    h.append(f'<p style="font-size:15px;color:#555;margin:-12px 0 20px 0;">'
+             f'{date_label_html}</p>')
 
     # Stats — use a table for email-safe spacing
     h.append('<div class="stats-bar"><table class="stats-table"><tr>')
-    h.append(f'<td>Articles: <b>{len(items)}</b></td>')
+    h.append(f'<td>Videos: <b>{len(items)}</b></td>')
     h.append(f'<td>Topics: <b>{len(sorted_topics)}</b></td>')
-    if tech_filter:
-        h.append(f'<td>Tech filter: '
-                 f'<b>{html_mod.escape(", ".join(tech_filter))}</b></td>')
     h.append('</tr></table></div>')
 
     # Table of contents
@@ -277,7 +281,8 @@ def build_html(items, date_from, date_to, tech_filter):
             url = item["url"]
             pub = item["published"]
             techs = item["techs"]
-            summary = item["summary"]
+            abstract = item["abstract"]
+            duration = item["duration"]
 
             h.append('<div class="article">')
 
@@ -289,25 +294,28 @@ def build_html(items, date_from, date_to, tech_filter):
             else:
                 h.append(f'<p class="article-title">{title_esc}</p>')
 
-            # Meta: date + tech tags
+            # Meta: date + tech tags + duration
             meta_parts = []
             if pub:
                 meta_parts.append(f'<span class="date">{html_mod.escape(pub)}</span>')
             for tech in techs:
                 meta_parts.append(f'<span class="tag">{html_mod.escape(tech)}</span>')
+            if duration:
+                meta_parts.append(
+                    f'<span class="duration-tag">{html_mod.escape(duration)}</span>')
             if meta_parts:
                 h.append(f'<p class="article-meta">{" ".join(meta_parts)}</p>')
 
-            # Summary (may contain HTML formatting from pipeline)
-            if summary:
-                h.append(f'<div class="article-summary">{summary}</div>')
+            # Abstract (may contain HTML formatting from pipeline)
+            if abstract:
+                h.append(f'<div class="article-summary">{abstract}</div>')
 
             h.append('</div>')
 
         h.append('<a href="#toc" class="back-link">&uarr; Back to index</a>')
         h.append('</div>')
 
-    h.append('<div class="footer-bar">Generated by Blog Digest Pipeline</div>')
+    h.append('<div class="footer-bar">Generated by Video Digest Pipeline</div>')
     h.append('</div>')  # wrapper
     h.append('</body></html>')
 
@@ -318,17 +326,14 @@ def main():
     args = parse_args()
     date_from = args.from_date
     date_to = args.to_date
-    tech_filter = ([t.strip() for t in args.tech.split(",") if t.strip()]
-                   if args.tech else [])
     recipients = (args.recipients if args.recipients
                   else CONFIG.get("email_report", {}).get("default_recipients", ""))
 
     date_from_dot = date_from.replace("-", ".")
     date_to_dot = date_to.replace("-", ".")
 
-    print(f"Fetching SP items from {date_from_dot} to {date_to_dot}...", file=sys.stderr)
-    if tech_filter:
-        print(f"Tech filter: {', '.join(tech_filter)}", file=sys.stderr)
+    print(f"Fetching SP video items from {date_from_dot} to {date_to_dot}...",
+          file=sys.stderr)
 
     p = sync_playwright().start()
     try:
@@ -339,7 +344,7 @@ def main():
         sp_page.goto(SP_LIST_URL, wait_until="domcontentloaded", timeout=30000)
         sp_page.wait_for_timeout(5000)
 
-        items = fetch_items(sp_page, date_from_dot, date_to_dot, tech_filter)
+        items = fetch_items(sp_page, date_from_dot, date_to_dot)
         sp_page.close()
     finally:
         p.stop()
@@ -354,22 +359,22 @@ def main():
             "topics_count": 0,
             "date_from": date_from,
             "date_to": date_to,
-            "message": "No items found for the specified date range and filters."
+            "message": "No video items found for the specified date range."
         }, indent=2))
         return
 
-    html_content = build_html(items, date_from, date_to, tech_filter)
+    html_content = build_html(items, date_from, date_to)
 
     # Save to output directory
     os.makedirs(os.path.join(BASE, "output"), exist_ok=True)
     today = datetime.now().strftime("%Y.%m.%d")
-    html_filename = f"{today}-BlogDigest.html"
+    html_filename = f"{today}-VideoDigest.html"
     html_path = os.path.join(BASE, "output", html_filename)
     with open(html_path, "w", encoding="utf-8") as f:
         f.write(html_content)
 
     # Build subject line
-    subject = f"PescoPedia Blog Digest - From: {date_from_dot} To: {date_to_dot}"
+    subject = f"PescoPedia Video Digest - From: {date_from_dot} To: {date_to_dot}"
 
     topics_count = len(set(item["topic"] for item in items))
 

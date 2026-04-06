@@ -12,15 +12,19 @@ Arguments:
     --clean           Strip timestamps from the output (text only)
 
 Output:
-    yt_transcripts/yt_<VIDEO_ID>_<YYYY-MM-DD>.txt
+    yt_transcripts/yt_<VIDEO_ID>.txt
 
 Requires:
     - Edge running with --remote-debugging-port=9222
     - Playwright for Python (pip install playwright)
 """
 from playwright.sync_api import sync_playwright
+from cdp_helper import ensure_edge_cdp
 import time, sys, re, json, os
-from datetime import date
+
+BASE = os.path.dirname(os.path.abspath(__file__))
+CONFIG = json.load(open(os.path.join(BASE, "config.json"), encoding="utf-8"))
+CDP_URL = CONFIG["edge_cdp"]["url"]
 
 
 def parse_video_id(value):
@@ -143,7 +147,8 @@ def main():
     video_url = f"https://www.youtube.com/watch?v={video_id}"
 
     with sync_playwright() as p:
-        browser = p.chromium.connect_over_cdp("http://localhost:9222")
+        ensure_edge_cdp()
+        browser = p.chromium.connect_over_cdp(CDP_URL)
         context = browser.contexts[0]
         page = context.new_page()
 
@@ -190,8 +195,7 @@ def main():
 
             out_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "yt_transcripts")
             os.makedirs(out_dir, exist_ok=True)
-            today = date.today().isoformat()
-            out_file = os.path.join(out_dir, f"yt_{video_id}_{today}.txt")
+            out_file = os.path.join(out_dir, f"yt_{video_id}.txt")
             with open(out_file, "w", encoding="utf-8") as f:
                 f.write(transcript_text)
 

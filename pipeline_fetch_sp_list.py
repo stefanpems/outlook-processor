@@ -2,6 +2,7 @@
 import sys, json, os
 sys.stdout = open(sys.stdout.fileno(), mode='w', buffering=1)
 from playwright.sync_api import sync_playwright
+from cdp_helper import ensure_edge_cdp
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 CONFIG = json.load(open(os.path.join(BASE, "config.json"), encoding="utf-8"))
@@ -10,6 +11,7 @@ CDP_URL = CONFIG["edge_cdp"]["url"]
 SP_TECH_LIST_URL = CONFIG["sharepoint"]["tech_list_url"]
 SP_TECH_LIST_API = CONFIG["sharepoint"]["tech_list_api"]
 
+ensure_edge_cdp()
 p = sync_playwright().start()
 browser = p.chromium.connect_over_cdp(CDP_URL)
 ctx = browser.contexts[0]
