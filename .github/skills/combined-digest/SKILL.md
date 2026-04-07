@@ -69,7 +69,7 @@ Follow the **vivaengage-conversations** skill procedure (Mode 2 — email digest
    ```bash
    python engage_build_html.py --input _ve_summaries.json
    ```
-4. Send the email via `send_email` MCP tool to `viva_engage.default_recipients`
+4. Send the email via `send_email` MCP tool to `viva_engage.default_recipients`: use the **complete, unmodified** HTML as `htmlBody` (verbatim, no summarization) and also attach the HTML file (base64-encoded)
 
 If no conversations are found across all communities, inform the user (do not send an empty digest).
 

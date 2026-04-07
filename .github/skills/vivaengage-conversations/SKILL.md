@@ -28,6 +28,7 @@ All parameters are in `config.json` at the workspace root:
 |--------|---------|-----------|
 | `engage_read_conversations.py` | Read conversations from a single community via CDP | `python engage_read_conversations.py "<community_name>" <days>` |
 | `engage_build_html.py` | Build HTML report from conversation summaries JSON | `python engage_build_html.py --input summaries.json` |
+| `pipeline_ve_email_actions.py` | Categorize and move VE notification emails in Outlook | `python pipeline_ve_email_actions.py --titles-file titles.json` |
 
 ### Script Output
 
@@ -85,18 +86,19 @@ This skill has two output modes depending on how the user triggers it:
 
 **Trigger phrases:** "processa le conversazioni", "process conversations", "riassumi le conversazioni", "summarize conversations", "novità dalla community"
 
-Produces a well-formatted **HTML file** saved to the `output/` directory (named `YYYY-MM-DD-VivaEngageDigest.html`). The agent presents the summaries in the chat AND generates the HTML file.
+Produces a well-formatted **HTML file** saved to the `output/` directory (named `Viva_Engage-Digest-From-YYYY.MM.DD-To-YYYY.MM.DD.html`). The agent presents the summaries in the chat AND generates the HTML file.
 
 ### Mode 2 — Create digest / Send email
 
 **Trigger phrases:** "crea digest", "create digest", "invia digest", "send digest", "manda il report", "send Viva Engage email"
 
-Same processing as Mode 1, but **additionally sends the HTML as the body of an email** to the default recipients from `config.json → viva_engage.default_recipients`. Uses the `send_email` MCP tool.
+Same processing as Mode 1, but **additionally sends the HTML as the body and attachment of an email** to the default recipients from `config.json → viva_engage.default_recipients`. Uses the `send_email` MCP tool.
 
 Email details:
 - **To:** `config.json → viva_engage.default_recipients` (can be overridden if user specifies recipients)
 - **Subject:** `PescoPedia Viva Engage Digest - From: YYYY.MM.DD To: YYYY.MM.DD` (using the date range of the digest window)
-- **Body:** the full HTML content produced by `engage_build_html.py`
+- **Body:** the **complete, unmodified** HTML content produced by `engage_build_html.py` — verbatim, no summarization or truncation
+- **Attachment:** the same HTML file (base64-encoded)
 
 ## Procedure
 
@@ -150,10 +152,10 @@ The title of each conversation is a **markdown link** to the thread. Use the `th
 
 #### If the conversation type is `announcement` or `discussion`:
 
-- **Post:** well-formatted rich-text synthesis (max 100 chars). Use `<b>` for key terms.
+- **Post:** well-formatted rich-text synthesis (up to **100 words**; can be shorter only if all key concepts are captured). Use `<b>` for key terms. **Strongly recommended structure** (where applicable): a short introductory sentence followed by a `<ul>` bullet list of the main points.
 - **Author:** name + creation date + last modified date (e.g. "Yuri Diogenes — Apr 3 (last activity: Apr 5)"). The last modified date is the most recent date found in the conversation's `dates` array.
 - **📎 Images attached** — only include this line when there are **actual embedded images** (screenshots, diagrams, photos) in the conversation post or replies. Do NOT include it when the conversation only contains hyperlinks to external pages.
-- **Comments:** well-formatted rich-text synthesis (**100–150 words**), aggregating relevant comment contributions. Dry, evidence-focused style. Use `<b>`, `<i>`, and `<ul><li>` bullet points for readability. **Every concept that is part of the comments must be at least mentioned.** Omit this line if no substantive comments.
+- **Comments:** well-formatted rich-text synthesis (**100–150 words**), aggregating relevant comment contributions. Dry, evidence-focused style. Use `<b>`, `<i>`, and `<ul><li>` bullet points for readability. **Strongly recommended structure** (where applicable): a short introductory sentence followed by a `<ul>` bullet list of the main points. **Every concept that is part of the comments must be at least mentioned.** Omit this line if no substantive comments.
 - **Follow-up:** only include this line when someone committed to a concrete action. Omit for pure acknowledgements or tagging.
 
 #### Summarization rules
@@ -204,7 +206,7 @@ Then run:
 python engage_build_html.py --input _ve_summaries.json
 ```
 
-This produces an HTML file in `output/YYYY-MM-DD-VivaEngageDigest.html` and outputs JSON with the `html_path`.
+This produces an HTML file in `output/Viva_Engage-Digest-From-YYYY.MM.DD-To-YYYY.MM.DD.html` and outputs JSON with the `html_path`.
 
 ### Step 4 — Deliver Results
 
@@ -232,7 +234,7 @@ Present the summaries in the chat grouped by community (same format as before), 
 ### 1. ...
 
 ---
-HTML report saved to `output/YYYY-MM-DD-VivaEngageDigest.html`.
+HTML report saved to `output/Viva_Engage-Digest-From-YYYY.MM.DD-To-YYYY.MM.DD.html`.
 ```
 
 #### Mode 2 (Create digest / Send email)
@@ -243,8 +245,40 @@ Same as Mode 1, but additionally:
 2. Use the `send_email` MCP tool to send the email:
    - **To:** recipients from `config.json → viva_engage.default_recipients` (or user-specified)
    - **Subject:** `PescoPedia Viva Engage Digest - From: YYYY.MM.DD To: YYYY.MM.DD`
-   - **Body:** the full HTML content
+   - **Body:** the **complete, unmodified** HTML content read from the file. Do NOT summarize, truncate, or alter it in any way — paste the entire file content verbatim.
+   - **attachmentName:** the HTML file name (e.g. `Viva_Engage-Digest-From-2026.04.03-To-2026.04.06.html`)
+   - **attachmentContent:** the HTML file content encoded as **base64**
 3. Confirm to the user that the email was sent and the HTML file was saved
+
+### Step 5 — Categorize and Move VE Notification Emails
+
+**This step is always executed** (both Mode 1 and Mode 2), as the final action after HTML generation (and optional email sending).
+
+Extract the list of conversation titles from the `_ve_summaries.json` file (the `title` field of each conversation across all communities). Save them as a JSON array to a temp file:
+
+```powershell
+# Extract titles from summaries and save to temp file
+python -c "import json; data=json.load(open('_ve_summaries.json',encoding='utf-8')); titles=[c['title'] for comm in data['communities'] for c in comm['conversations']]; json.dump(titles,open('_ve_titles.json','w',encoding='utf-8'),ensure_ascii=False)"
+```
+
+Then run:
+
+```bash
+python pipeline_ve_email_actions.py --titles-file _ve_titles.json
+```
+
+This script:
+1. For each title, searches the **entire mailbox** (all folders) using: `subject:("<full title>") -"By agent - Viva Engage" -"PescoPedia"`
+2. For every email found, categorizes it as **"By agent - Viva Engage"** and moves it to **"Social Networks"** folder
+3. Outputs JSON with per-title results and totals
+
+Clean up temp file after:
+
+```bash
+Remove-Item _ve_titles.json -ErrorAction SilentlyContinue
+```
+
+Report to the user: total emails found, categorized, and moved.
 
 ## How It Works — Technical Details
 

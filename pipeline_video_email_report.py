@@ -367,9 +367,14 @@ def main():
 
     # Save to output directory
     os.makedirs(os.path.join(BASE, "output"), exist_ok=True)
-    today = datetime.now().strftime("%Y.%m.%d")
-    html_filename = f"{today}-VideoDigest.html"
+    html_filename = f"Video_Notifications-Digest-From-{date_from_dot}-To-{date_to_dot}.html"
     html_path = os.path.join(BASE, "output", html_filename)
+    if os.path.exists(html_path):
+        for seq in range(2, 100):
+            html_filename = f"Video_Notifications-Digest-From-{date_from_dot}-To-{date_to_dot}-{seq:02d}.html"
+            html_path = os.path.join(BASE, "output", html_filename)
+            if not os.path.exists(html_path):
+                break
     with open(html_path, "w", encoding="utf-8") as f:
         f.write(html_content)
 

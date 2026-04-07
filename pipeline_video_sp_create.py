@@ -82,7 +82,7 @@ def create_sp_item(page, digest, item_data):
     if tech_ids:
         body["TechId"] = {"results": tech_ids}
 
-    body_json = json.dumps(body)
+    body_json = json.dumps(body, ensure_ascii=False)
     body_esc = body_json.replace("\\", "\\\\").replace("`", "\\`").replace("${", "\\${")
 
     result = page.evaluate(f"""async () => {{
@@ -120,7 +120,7 @@ def create_sp_item(page, digest, item_data):
                 "Url": link,
                 "Description": link
             }
-        })
+        }, ensure_ascii=False)
         link_esc = link_body.replace("\\", "\\\\").replace("`", "\\`").replace("${", "\\${")
         link_result = page.evaluate(f"""async () => {{
             try {{
@@ -155,7 +155,7 @@ def update_sp_abstract(page, digest, sp_id, abstract):
         "__metadata": {"type": SP_ENTITY_TYPE},
         FIELDS["abstract"]: abstract
     }
-    body_esc = json.dumps(body).replace("\\", "\\\\").replace("`", "\\`").replace("${", "\\${")
+    body_esc = json.dumps(body, ensure_ascii=False).replace("\\", "\\\\").replace("`", "\\`").replace("${", "\\${")
 
     result = page.evaluate(f"""async () => {{
         try {{
@@ -210,7 +210,7 @@ def update_sp_all_fields(page, digest, sp_id, item_data):
     if tech_ids:
         body["TechId"] = {"results": tech_ids}
 
-    body_esc = json.dumps(body).replace("\\", "\\\\").replace("`", "\\`").replace("${", "\\${")
+    body_esc = json.dumps(body, ensure_ascii=False).replace("\\", "\\\\").replace("`", "\\`").replace("${", "\\${")
 
     result = page.evaluate(f"""async () => {{
         try {{
@@ -243,7 +243,7 @@ def update_sp_all_fields(page, digest, sp_id, item_data):
                 "Url": link,
                 "Description": link
             }
-        })
+        }, ensure_ascii=False)
         link_esc = link_body.replace("\\", "\\\\").replace("`", "\\`").replace("${", "\\${")
         link_result = page.evaluate(f"""async () => {{
             try {{

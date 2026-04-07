@@ -362,9 +362,16 @@ def main():
 
     # Save to output directory
     os.makedirs(os.path.join(BASE, "output"), exist_ok=True)
-    today = datetime.now().strftime("%Y.%m.%d")
-    html_filename = f"{today}-BlogDigest.html"
+    html_filename = f"Blog_Notifications-Digest-From-{date_from_dot}-To-{date_to_dot}.html"
     html_path = os.path.join(BASE, "output", html_filename)
+    if os.path.exists(html_path):
+        nn = 2
+        while True:
+            html_filename = f"Blog_Notifications-Digest-From-{date_from_dot}-To-{date_to_dot}-{nn:02d}.html"
+            html_path = os.path.join(BASE, "output", html_filename)
+            if not os.path.exists(html_path):
+                break
+            nn += 1
     with open(html_path, "w", encoding="utf-8") as f:
         f.write(html_content)
 

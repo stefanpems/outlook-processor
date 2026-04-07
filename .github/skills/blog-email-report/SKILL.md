@@ -67,7 +67,9 @@ Read the HTML file at `html_path` returned in Step 2.
 Use the **send_email** MCP tool with:
 - `emailAddresses`: the recipients (semicolon-separated)
 - `subject`: the `subject` value from the script output
-- `htmlBody`: the full HTML content read from the file
+- `htmlBody`: the **complete, unmodified** HTML content read from the file. Do NOT summarize, truncate, or alter it in any way — paste the entire file content verbatim.
+- `attachmentName`: the HTML file name (e.g. `Blog_Notifications-Digest-From-2026.04.03-To-2026.04.06.html`)
+- `attachmentContent`: the HTML file content encoded as **base64**
 
 ### Step 4 — Confirm to User
 

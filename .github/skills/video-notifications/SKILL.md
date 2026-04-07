@@ -32,12 +32,12 @@ The workspace contains purpose-built Python scripts for each pipeline activity. 
 
 | Script | Purpose | CLI Usage |
 |--------|---------|-----------|
-| `pipeline_init.py` | Initialize session: create XLSX + HTML templates with progressive naming | `python pipeline_init.py` |
+| `pipeline_init.py` | Initialize session: create XLSX + HTML templates | `python pipeline_init.py --type video --from-date YYYY-MM-DD --to-date YYYY-MM-DD` |
 | `pipeline_video_retrieve.py` | Retrieve matching video emails from Outlook Web via CDP | `python pipeline_video_retrieve.py YYYY-MM-DD YYYY-MM-DD [--include-processed]` |
 | `pipeline_fetch_video.py` | Fetch YouTube video metadata (title, date, duration, description, chapters) | `python pipeline_fetch_video.py <url>` |
 | `yt_transcript.py` | Download YouTube transcript to `yt_transcripts/yt_<VIDEO_ID>.txt` | `python yt_transcript.py <video_id_or_url> [--clean]` |
 | `pipeline_video_check_dup.py` | Check duplicates by title and yt_id (session + SP) | `python pipeline_video_check_dup.py <title> [<yt_id>]` |
-| `pipeline_video_sp_create.py` | Create/update VideoPosts SP item via REST API | `echo '{...}' \| python pipeline_video_sp_create.py -` |
+| `pipeline_video_sp_create.py` | Create/update VideoPosts SP item via REST API | `python pipeline_video_sp_create.py _sp_input.json` |
 | `pipeline_video_email_actions.py` | Categorize and/or move video email in Outlook | `python pipeline_video_email_actions.py both <title>` |
 | `pipeline_update_reports.py` | Rebuild XLSX + HTML from session_state.json | `python pipeline_update_reports.py` |
 | `pipeline_fetch_videoposts.py` | Fetch all existing SP VideoPosts → `sp_videoposts.json` | `python pipeline_fetch_videoposts.py` |
@@ -89,12 +89,12 @@ Execute the steps below **strictly in order**. For each step, use the specified 
 ### Step 0 — Initialize Session
 
 ```bash
-python pipeline_init.py
+python pipeline_init.py --type video --from-date {date_from} --to-date {date_to}
 ```
 
 This creates:
-- An XLSX file: `output/YYYY.MM.DD-NN-ProcessedEmails.xlsx` with header row
-- An HTML file: `output/YYYY.MM.DD-NN-ProcessedEmails.html` with template
+- An XLSX file: `output/Video_Notifications-Digest-From-YYYY.MM.DD-To-YYYY.MM.DD.xlsx` with header row
+- An HTML file: `output/Video_Notifications-Digest-From-YYYY.MM.DD-To-YYYY.MM.DD.html` with template
 - A session state file: `session_state.json`
 
 The script outputs JSON with the paths. Note the `xlsx_path` and `html_path`.
@@ -268,15 +268,17 @@ Store the tech classification in the email's `tech` field.
 
 **If creating a new SP item** (`dup_sp` was false):
 
-```bash
-echo '{"title":"...","published_date":"...","abstract":"...","topic":"...","tech":"...","video_link":"...","duration":"...","yt_id":"..."}' | python pipeline_video_sp_create.py -
+```powershell
+Set-Content -Path _sp_input.json -Value '<JSON>' -Encoding utf8
+python pipeline_video_sp_create.py _sp_input.json
+Remove-Item _sp_input.json
 ```
 
 The JSON fields:
 - `title`: video title
 - `published_date`: in `YYYY-MM-DD` format (converted to `YYYY.MM.DD` by the script)
 - `abstract`: generated HTML abstract
-- `topic`: from email subject `[Video-Topic]`
+- `topic`: **MANDATORY** — the value extracted by `pipeline_video_retrieve.py` from the email subject `[Video-Topic]`, already stored in `session_state.json` for each email. This maps to the SP `SourceNew` field via `config.json → source_map`. **Never omit this field and never try to infer it — always use the exact `topic` value from the email's entry in `session_state.json`.**
 - `tech`: comma-separated tech tags
 - `video_link`: canonical YouTube URL (or original URL if not YouTube)
 - `duration`: formatted duration string (e.g. `1h 23m` or `45m`)
@@ -284,11 +286,27 @@ The JSON fields:
 
 **If updating abstract on existing SP item** (`dup_sp` true, `sp_has_abstract` false):
 
-```bash
-echo '{"abstract":"...","title":"..."}' | python pipeline_video_sp_create.py --update-abstract <sp_id> -
+```powershell
+Set-Content -Path _sp_input.json -Value '{"abstract":"...","title":"..."}' -Encoding utf8
+python pipeline_video_sp_create.py --update-abstract <sp_id> _sp_input.json
+Remove-Item _sp_input.json
 ```
 
-Do NOT create temporary files — pipe JSON via stdin.
+Do NOT pipe JSON via `echo` in PowerShell — non-ASCII characters (hyphens, dashes, accented letters) will be corrupted. Instead, **always write JSON to a temp file with UTF-8 encoding** and pass the file path:
+
+```powershell
+Set-Content -Path _sp_input.json -Value '{"title":"...","published_date":"...","abstract":"...","topic":"...","tech":"...","video_link":"...","duration":"...","yt_id":"..."}' -Encoding utf8
+python pipeline_video_sp_create.py _sp_input.json
+Remove-Item _sp_input.json
+```
+
+For updates:
+
+```powershell
+Set-Content -Path _sp_input.json -Value '{"abstract":"...","title":"..."}' -Encoding utf8
+python pipeline_video_sp_create.py --update-abstract <sp_id> _sp_input.json
+Remove-Item _sp_input.json
+```
 
 #### 3.7 — Categorize + Move Email in Outlook
 
@@ -359,7 +377,9 @@ Read the HTML file at `html_path` returned in Step 5.1.
 Use the **send_email** MCP tool with:
 - `emailAddresses`: recipients from `config.json` → `email_report.default_recipients` (or as specified by the user)
 - `subject`: the `subject` value from the script output
-- `htmlBody`: the full HTML content read from the file
+- `htmlBody`: the **complete, unmodified** HTML content read from the file. Do NOT summarize, truncate, or alter it in any way — paste the entire file content verbatim.
+- `attachmentName`: the HTML file name (e.g. `Video_Notifications-Digest-From-2026.04.03-To-2026.04.06.html`)
+- `attachmentContent`: the HTML file content encoded as **base64**
 
 #### 5.3 — Confirm to User
 

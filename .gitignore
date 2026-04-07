@@ -13,6 +13,7 @@ yt_transcripts/
 # Session and cached data
 session_state.json
 sp_blogposts.json
+sp_videoposts.json
 tech_list.json
 
 # Python

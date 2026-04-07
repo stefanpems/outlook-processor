@@ -284,10 +284,24 @@ def main():
     html_content = build_html(data)
 
     # Write to output directory
-    date_label = data.get("date_label", datetime.now().strftime("%Y-%m-%d"))
+    date_from = data.get("date_from", "")
+    date_to = data.get("date_to", "")
+    if date_from and date_to:
+        from_dot = date_from.replace("-", ".")
+        to_dot = date_to.replace("-", ".")
+    else:
+        date_label = data.get("date_label", datetime.now().strftime("%Y-%m-%d"))
+        from_dot = date_label.replace("-", ".")
+        to_dot = from_dot
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    filename = f"{date_label}-VivaEngageDigest.html"
+    filename = f"Viva_Engage-Digest-From-{from_dot}-To-{to_dot}.html"
     html_path = os.path.join(OUTPUT_DIR, filename)
+    if os.path.exists(html_path):
+        for seq in range(2, 100):
+            filename = f"Viva_Engage-Digest-From-{from_dot}-To-{to_dot}-{seq:02d}.html"
+            html_path = os.path.join(OUTPUT_DIR, filename)
+            if not os.path.exists(html_path):
+                break
     with open(html_path, "w", encoding="utf-8") as f:
         f.write(html_content)
 

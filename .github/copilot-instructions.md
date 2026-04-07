@@ -24,7 +24,7 @@ If an existing script does not cover a need:
 
 | File | Purpose |
 |------|---------|
-| `pipeline_init.py` | Initialize session: create XLSX + HTML templates with progressive naming (`YYYY.MM.DD-NN-ProcessedEmails`). |
+| `pipeline_init.py` | Initialize session: create XLSX + HTML templates. Usage: `python pipeline_init.py --type blog|video --from-date YYYY-MM-DD --to-date YYYY-MM-DD`. Naming: `{Type}_Notifications-Digest-From-YYYY.MM.DD-To-YYYY.MM.DD.{ext}` (adds `-NN` suffix on collision). |
 | `pipeline_retrieve.py` | Retrieve matching emails from Outlook Web via Playwright CDP for a date range. |
 | `pipeline_fetch_blog.py` | Fetch blog content from a URL: resolve final URL, extract title, date, article text. |
 | `pipeline_check_dup.py` | Check if a blog post is a duplicate (session + SP). |
@@ -56,6 +56,7 @@ If an existing script does not cover a need:
 | `pipeline_email_report.py` | Build HTML blog digest from SP BlogPosts (grouped by topic), save to `output/` for email sending. |
 | `engage_read_conversations.py` | Read conversations from a Viva Engage community via CDP → JSON to stdout. |
 | `engage_build_html.py` | Build HTML digest from Viva Engage conversation summaries JSON → `output/`. |
+| `pipeline_ve_email_actions.py` | Categorize and move VE notification emails in Outlook (search by subject, categorize as "By agent - Viva Engage", move to "Social Networks"). |
 | `yt_transcript.py` | Download YouTube video transcript via CDP → `yt_<VIDEO_ID>.txt`. |
 | `pipeline_fetch_videoposts.py` | Fetches all existing VideoPosts from SP list → `sp_videoposts.json`. |
 | `cdp_helper.py` | Shared helper: checks if Edge CDP is reachable, auto-launches Edge with debug profile if not. Imported by all CDP-dependent scripts. |
@@ -72,7 +73,7 @@ If an existing script does not cover a need:
 | `blog_cache/` | Directory of cached blog article texts (`.txt` files). Populated by `pipeline_fetch_blog.py` and `pipeline_cache_blogs.py`. |
 | `yt_transcripts/` | Directory of downloaded YouTube video transcripts (`yt_<VIDEO_ID>.txt`). Populated by `yt_transcript.py`. |
 | `config.json.template` | Template for `config.json` with placeholder values. Copy and fill in to create a working `config.json`. |
-| `output/` | Directory for generated reports: XLSX and HTML files named `YYYY.MM.DD-NN-ProcessedEmails.*` (created by `pipeline_init.py`) and `YYYY.MM.DD-BlogDigest.html` (created by `pipeline_email_report.py`). |
+| `output/` | Directory for generated reports. Naming convention: `Blog_Notifications-Digest-From-YYYY.MM.DD-To-YYYY.MM.DD.{ext}` (blog), `Video_Notifications-Digest-From-YYYY.MM.DD-To-YYYY.MM.DD.{ext}` (video), `Viva_Engage-Digest-From-YYYY.MM.DD-To-YYYY.MM.DD.html` (Viva Engage). If file exists, `-NN` suffix is added before the extension. |
 
 ## Prerequisites
 

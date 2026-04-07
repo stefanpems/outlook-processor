@@ -31,12 +31,14 @@
       "Community Name 2"
     ],
     "default_days": 1,
-    "default_recipients": "your-digest-recipients@example.com"
+    "default_recipients": "your-digest-recipients@example.com",
+    "processed_category": "By agent - Viva Engage",
+    "target_folder": "Social Networks"
   },
   "output": {
     "dir": "output",
-    "xlsx_pattern": "{date}-{nn}-ProcessedEmails.xlsx",
-    "html_pattern": "{date}-{nn}-ProcessedEmails.html"
+    "xlsx_pattern": "{Type}_Notifications-Digest-From-{date_from}-To-{date_to}.xlsx",
+    "html_pattern": "{Type}_Notifications-Digest-From-{date_from}-To-{date_to}.html"
   },
   "source_map": {
     "TopicName": 0
