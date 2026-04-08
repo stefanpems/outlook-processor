@@ -1,17 +1,18 @@
 ---
 name: combined-digest
-description: "Run both the blog email digest and the Viva Engage conversations digest in sequence for a given time window. Triggered by generic digest requests like 'crea un digest degli ultimi 3 giorni', 'create a digest for the last 5 days', 'digest settimanale', WITHOUT specifying blog or Viva Engage explicitly."
+description: "Run the blog, video, and Viva Engage notification digests in sequence for a given time window. Triggered by generic digest requests like 'crea un digest degli ultimi 3 giorni', 'create a digest for the last 5 days', 'digest settimanale', WITHOUT specifying blog, video, or Viva Engage explicitly."
 argument-hint: "Specify the number of days, e.g.: 'crea un digest degli ultimi 3 giorni' or 'digest for the last 7 days'"
 ---
 
-# Combined Digest (Blog + Viva Engage)
+# Combined Digest (Blog + Video + Viva Engage Notifications)
 
 ## Purpose
 
-When the user asks to "create a digest" for the last X days **without specifying** which content (blog or Viva Engage), this skill orchestrates both digest pipelines in sequence:
+When the user asks to "create a digest" for the last X days **without specifying** which content (blog, video, or Viva Engage), this skill orchestrates all three notification digest pipelines in sequence:
 
-1. **Blog email digest** — queries SP BlogPosts for the date range and sends the HTML digest email
-2. **Viva Engage conversations digest** — reads communities, summarizes conversations, and sends the HTML digest email
+1. **Blog notifications digest** — processes blog notification emails, ensures SP items are complete, and sends the HTML blog digest email
+2. **Video notifications digest** — processes video notification emails, ensures SP items are complete, and sends the HTML video digest email
+3. **Viva Engage notifications digest** — processes VE notification emails, reads thread replies, and sends the HTML VE digest email
 
 ## When to Use This Skill
 
@@ -19,9 +20,9 @@ Use this skill when the user's prompt matches **all** of these conditions:
 
 - Asks to **create / send a digest** (e.g. "crea un digest", "create a digest", "digest settimanale", "manda il digest degli ultimi 5 giorni")
 - Specifies a **time window** (e.g. "ultimi 3 giorni", "last 7 days", "della settimana")
-- Does **NOT** specify a particular content type (does not mention "blog", "Viva Engage", "community", "conversazioni", "email di notifica")
+- Does **NOT** specify a particular content type (does not mention "blog", "video", "Viva Engage", "community", "conversazioni", "notifiche video")
 
-If the user explicitly mentions "blog" or "Viva Engage" / "community", use the corresponding individual skill instead.
+If the user explicitly mentions "blog", "video", or "Viva Engage" / "community", use the corresponding individual skill instead.
 
 ## Date Range Calculation
 
@@ -45,10 +46,11 @@ Extract the number of days from the prompt. Compute `date_from` and `date_to` as
 
 Read `config.json` to get:
 - `email_report.default_recipients` (blog digest recipients)
+- `video_outlook` and `video_sharepoint` sections (video digest config)
 - `viva_engage.default_recipients` (Viva Engage digest recipients)
-- `viva_engage.communities` (list of communities)
+- `viva_engage.notification_sender` (VE notification email sender)
 
-### Step 2 — Blog Email Digest
+### Step 2 — Blog Notifications Digest
 
 Execute the **blog-notifications** skill in **Digest mode (standard)** for the computed date range. This ensures all blog notification emails in the period are registered in SharePoint (creating or completing SP items as needed) before generating and sending the HTML digest.
 
@@ -56,25 +58,25 @@ Follow the full blog-notifications Digest mode procedure (Steps 0–5). The dige
 
 If no blog items exist in SP for the date range after processing, inform the user and proceed to Step 3 (do not send an empty blog digest).
 
-### Step 3 — Viva Engage Conversations Digest
+### Step 3 — Video Notifications Digest
 
-Follow the **vivaengage-conversations** skill procedure (Mode 2 — email digest):
+Execute the **video-notifications** skill in **Digest mode (standard)** for the computed date range. This ensures all video notification emails in the period are registered in SharePoint (creating or completing SP items as needed) before generating and sending the HTML video digest.
 
-1. For each community in `viva_engage.communities`, run:
-   ```bash
-   python engage_read_conversations.py "<community_name>" <days>
-   ```
-2. Summarize conversations (LLM task per the vivaengage-conversations skill rules)
-3. Build the HTML report:
-   ```bash
-   python engage_build_html.py --input _ve_summaries.json
-   ```
-4. Send the email via `send_email` MCP tool to `viva_engage.default_recipients`: use the **complete, unmodified** HTML as `htmlBody` (verbatim, no summarization) and also attach the HTML file (base64-encoded)
+Follow the full video-notifications Digest mode procedure (Steps 0–5). The digest email is sent automatically as part of Step 5.
 
-If no conversations are found across all communities, inform the user (do not send an empty digest).
+If no video items exist in SP for the date range after processing, inform the user and proceed to Step 4 (do not send an empty video digest).
 
-### Step 4 — Final Summary
+### Step 4 — Viva Engage Notifications Digest
+
+Execute the **vivaengage-notifications** skill procedure for the computed date range:
+
+Follow the full vivaengage-notifications procedure (Phases 1–4). The digest email is sent automatically as part of Phase 4.
+
+If no VE notification emails are found, inform the user (do not send an empty digest).
+
+### Step 5 — Final Summary
 
 Report to the user:
 - **Blog digest:** number of articles, topics, date range, recipients (or "skipped — no items")
-- **Viva Engage digest:** number of conversations, communities covered, recipients (or "skipped — no conversations")
+- **Video digest:** number of videos, topics, date range, recipients (or "skipped — no items")
+- **Viva Engage digest:** number of notifications processed, communities covered, recipients (or "skipped — no notifications")

@@ -83,7 +83,7 @@ If an existing script does not cover a need:
 | `blog_cache/` | Directory of cached blog article texts (`.txt` files). Populated by `pipeline_fetch_blog.py` and `pipeline_cache_blogs.py`. |
 | `yt_transcripts/` | Directory of downloaded YouTube video transcripts (`yt_<VIDEO_ID>.txt`). Populated by `yt_transcript.py`. |
 | `config.json.template` | Template for `config.json` with placeholder values. Copy and fill in to create a working `config.json`. |
-| `ve_notifications_cache.json` | Cache of VE notification emails being processed by the `Viva_Engage-notification` skill. Overwritten on each new run. |
+| `ve_notifications_cache.json` | Cache of VE notification emails being processed by the `vivaengage-notifications` skill. Overwritten on each new run. |
 | `output/` | Directory for generated reports. Naming convention: `Blog_Notifications-Digest-From-YYYY.MM.DD-To-YYYY.MM.DD.{ext}` (blog), `Video_Notifications-Digest-From-YYYY.MM.DD-To-YYYY.MM.DD.{ext}` (video), `Viva_Engage-Digest-From-YYYY.MM.DD-To-YYYY.MM.DD.html` (Viva Engage). If file exists, `-NN` suffix is added before the extension. |
 
 ## Prerequisites

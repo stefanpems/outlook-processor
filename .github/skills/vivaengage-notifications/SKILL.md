@@ -1,5 +1,5 @@
 ---
-name: Viva_Engage-notification
+name: vivaengage-notifications
 description: "Create a digest from Viva Engage notification emails in Outlook: search, analyze, read thread replies, categorize+move emails, build HTML digest and send by email. Triggered by prompts like 'Crea digest per le notifiche di Viva Engage da ... a ...' or 'Create digest for Viva Engage notifications from date X to date Y'."
 argument-hint: "Specify start and end dates, e.g.: 'dal 2026.04.01 al 2026.04.06' or 'from 2026-04-01 to 2026-04-06'"
 ---
