@@ -24,6 +24,8 @@ SP_SITE_BASE = CONFIG["sharepoint"]["site_base"]
 SP_LIST_URL = CONFIG["video_sharepoint"]["list_url"]
 FIELDS = CONFIG["video_sharepoint"]["fields"]
 SOURCE_MAP = {k: int(v) for k, v in CONFIG["source_map"].items()}
+# Build case-insensitive lookup (video email topics may differ in case from source_map keys)
+SOURCE_MAP_CI = {k.lower(): v for k, v in SOURCE_MAP.items()}
 TECH_MAP_IDS = {k: int(v) for k, v in CONFIG["tech_map"].items()}
 
 
@@ -65,7 +67,7 @@ def create_sp_item(page, digest, item_data):
     duration = item_data.get("duration", "")
     yt_id = item_data.get("yt_id", "")
 
-    source_id = SOURCE_MAP.get(topic)
+    source_id = SOURCE_MAP.get(topic) or SOURCE_MAP_CI.get(topic.lower() if topic else "")
     tech_ids = get_tech_ids(tech_str)
 
     body = {
@@ -193,7 +195,7 @@ def update_sp_all_fields(page, digest, sp_id, item_data):
     duration = item_data.get("duration", "")
     yt_id = item_data.get("yt_id", "")
 
-    source_id = SOURCE_MAP.get(topic)
+    source_id = SOURCE_MAP.get(topic) or SOURCE_MAP_CI.get(topic.lower() if topic else "")
     tech_ids = get_tech_ids(tech_str)
 
     body = {

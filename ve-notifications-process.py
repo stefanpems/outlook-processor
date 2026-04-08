@@ -79,6 +79,23 @@ def main():
 
         page.goto(thread_url, timeout=60000)
         time.sleep(5)
+
+        # Handle account picker if shown
+        try:
+            body_text = page.inner_text("body")
+            if "Pick an account" in body_text or "Scegli un account" in body_text:
+                user_email = CONFIG.get("email_report", {}).get("default_recipients", "")
+                acct = page.locator(f"text={user_email}")
+                if acct.count() > 0:
+                    acct.first.click()
+                    time.sleep(5)
+                    try:
+                        page.wait_for_load_state("networkidle", timeout=15000)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
         try:
             page.wait_for_load_state("networkidle", timeout=15000)
         except Exception:

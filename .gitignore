@@ -29,6 +29,7 @@ viva_engage_*.png
 _ve_*.json
 _ve_*.log
 _ve_*.txt
+ve_notifications_cache.json
 
 # Deprecated files with hardcoded data
 .github/skills/OLD-blog-notifications/

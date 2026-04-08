@@ -95,7 +95,7 @@ def extract_email_details(page):
         for link in links:
             try:
                 parent_text = link.evaluate("el => el.parentElement ? el.parentElement.innerText : ''")
-                if "pubblicato in" in parent_text.lower() or "posted in" in parent_text.lower():
+                if "pubblicato in" in parent_text.lower() or "posted in" in parent_text.lower() or "annuncio pubblicato in" in parent_text.lower():
                     result["community_name"] = link.inner_text().strip()
                     result["community_url"] = link.get_attribute("href") or ""
                     break
@@ -104,15 +104,25 @@ def extract_email_details(page):
     except Exception:
         pass
 
-    # Author - look for the name after "Pubblicato in <community>" or similar pattern
+    # Fallback: extract community name from body text if link extraction failed
+    if not result["community_name"]:
+        cm = re.search(r'(?:Pubblicato in|Posted in|Annuncio pubblicato in)\s+(.+)', rp_text, re.IGNORECASE)
+        if cm:
+            result["community_name"] = cm.group(1).strip().split("\n")[0].strip()
+
+    # Author - look for the name before the "Pubblicato in" line or after
+    # Pattern: the author block is typically "AuthorName, PostTitle\nPubblicato in CommunityName"
     lines = rp_text.split("\n")
     for i, line in enumerate(lines):
-        if "pubblicato in" in line.lower() or "posted in" in line.lower():
-            # The author name is typically on the next non-empty line
-            for j in range(i + 1, min(i + 5, len(lines))):
+        if "pubblicato in" in line.lower() or "posted in" in line.lower() or "annuncio pubblicato in" in line.lower():
+            # Look backwards for the author line (usually 1-3 lines above)
+            for j in range(i - 1, max(i - 5, -1), -1):
                 candidate = lines[j].strip()
-                if candidate and len(candidate) > 2 and not candidate.startswith("http"):
-                    result["author"] = candidate
+                # Author line typically contains a comma and the post title
+                if candidate and len(candidate) > 2 and not candidate.startswith("http") and candidate not in ("Cambia visualizzazione", "Riepilogo di Copilot"):
+                    # Extract just the author name (before the first comma if it contains post title)
+                    parts = candidate.split(", ", 1)
+                    result["author"] = parts[0].strip()
                     break
             break
 
@@ -162,7 +172,26 @@ def main():
             return
 
         items[idx].click()
-        page.wait_for_timeout(2000)
+        page.wait_for_timeout(1500)
+
+        # Try clicking "Mostra tutto il contenuto ora" to expand condensed email
+        try:
+            expand_btn = page.locator('button:has-text("Mostra tutto il contenuto"), a:has-text("Mostra tutto il contenuto")')
+            if expand_btn.count() > 0:
+                expand_btn.first.click(timeout=3000)
+                page.wait_for_timeout(2000)
+        except Exception:
+            pass
+
+        # Wait for email body to fully load (look for "Pubblicato in" / "Posted in")
+        for _ in range(8):
+            try:
+                rp_text = page.locator('[role="main"]').first.inner_text()
+                if "pubblicato in" in rp_text.lower() or "posted in" in rp_text.lower() or "annuncio pubblicato" in rp_text.lower():
+                    break
+            except Exception:
+                pass
+            page.wait_for_timeout(1500)
 
         details = extract_email_details(page)
         if details:

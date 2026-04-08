@@ -247,10 +247,10 @@ Use the **send_email** MCP tool with:
 
 #### 4.4 — Cleanup
 
-Remove the temporary summaries file:
+Remove the temporary files:
 
 ```bash
-Remove-Item _ve_notif_summaries.json -ErrorAction SilentlyContinue
+Remove-Item _ve_notif_summaries.json, _ve_batch_actions.json, _ve_attachment_b64.txt -ErrorAction SilentlyContinue
 ```
 
 The `ve_notifications_cache.json` file is kept for debugging. It will be overwritten on next run.

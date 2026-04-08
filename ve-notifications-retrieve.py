@@ -116,9 +116,9 @@ def count_all_results(page):
     cy = bbox['y'] + bbox['height'] / 2
 
     stable = 0
-    while stable < 3:
+    while stable < 5:
         page.mouse.move(cx, cy)
-        page.mouse.wheel(0, 400)
+        page.mouse.wheel(0, 600)
         page.wait_for_timeout(1500)
         n = read_visible()
         stable = 0 if n > 0 else stable + 1
@@ -137,19 +137,53 @@ def get_reading_pane_fingerprint(page):
 
 def wait_for_pane_change(page, old_fingerprint, max_wait_ms=5000):
     """Wait until the reading pane content changes from old_fingerprint."""
-    waited = 0
-    step = 500
-    while waited < max_wait_ms:
-        page.wait_for_timeout(step)
-        waited += step
-        new_fp = get_reading_pane_fingerprint(page)
-        if new_fp and new_fp != old_fingerprint:
-            return True
-    return False
+    try:
+        page.wait_for_function(
+            """(oldFp) => {
+                const el = document.querySelector('[role="main"]');
+                if (!el) return false;
+                const newFp = el.innerText.trim().substring(0, 300);
+                return newFp && newFp !== oldFp;
+            }""",
+            old_fingerprint,
+            timeout=max_wait_ms
+        )
+        return True
+    except Exception:
+        return False
+
+
+def expand_and_wait_for_content(page, max_wait_ms=8000):
+    """Click 'Mostra tutto il contenuto ora' if present, then wait for full content load."""
+    # Click "Mostra tutto il contenuto ora" to accelerate loading
+    try:
+        btn = page.locator('[role="main"]').get_by_text("Mostra tutto il contenuto ora", exact=False)
+        if btn.count() > 0:
+            btn.first.click()
+            page.wait_for_timeout(1500)
+    except Exception:
+        pass
+
+    # Wait until "Pubblicato in" / "Posted in" appears — single JS check in browser, no round-trips
+    try:
+        page.wait_for_function(
+            """() => {
+                const el = document.querySelector('[role="main"]');
+                if (!el) return false;
+                const t = el.innerText.toLowerCase();
+                return t.includes('pubblicato in') || t.includes('posted in');
+            }""",
+            timeout=max_wait_ms
+        )
+    except Exception:
+        pass
 
 
 def read_reading_pane(page):
     """Extract VE notification email data from the current reading pane."""
+    # Wait for full content to load
+    expand_and_wait_for_content(page)
+
     try:
         rp = page.locator('[role="main"]').first
         rp_text = rp.inner_text()
@@ -193,39 +227,58 @@ def read_reading_pane(page):
         post_type = type_match.group(1).strip()
         post_title = type_match.group(2).strip()
 
-    # Extract community link (link following "Pubblicato in " or "Posted in ")
+    # Extract all link data in a single JS call (community + thread URL)
     community_name = ""
     community_url = ""
-    try:
-        links = page.locator('[role="main"] a[href]').all()
-        for link in links:
-            try:
-                parent_text = link.evaluate("el => el.parentElement ? el.parentElement.innerText : ''")
-                if "pubblicato in" in parent_text.lower() or "posted in" in parent_text.lower():
-                    community_name = link.inner_text().strip()
-                    community_url = link.get_attribute("href") or ""
-                    break
-            except Exception:
-                continue
-    except Exception:
-        pass
-
-    # Extract author
-    author = ""
-    author_match = re.search(r'(?:Pubblicato in .+?\n)(.+?)(?:\n|ha pubblicato|posted)', rp_text, re.IGNORECASE)
-    if author_match:
-        author = author_match.group(1).strip()
-
-    # Extract Viva Engage thread URL from links
     thread_url = ""
     try:
-        for link in page.locator('[role="main"] a[href]').all():
-            href = link.get_attribute("href") or ""
-            if "engage.cloud.microsoft" in href and "thread" in href:
-                thread_url = href
-                break
+        link_data = page.evaluate("""() => {
+            const main = document.querySelector('[role="main"]');
+            if (!main) return {community: null, thread: null};
+            const links = Array.from(main.querySelectorAll('a[href]'));
+            let community = null, thread = null, groupFallback = null;
+            for (const a of links) {
+                const href = a.href || '';
+                const text = a.innerText || '';
+                if (!community && a.parentElement) {
+                    const pt = (a.parentElement.innerText || '').toLowerCase();
+                    if (pt.includes('pubblicato in') || pt.includes('posted in')) {
+                        community = {name: text.trim(), url: href};
+                    }
+                }
+                if (!thread && href.includes('engage.cloud.microsoft') && href.includes('/threads/')) {
+                    thread = href;
+                }
+                if (!groupFallback && href.includes('engage.cloud.microsoft') && href.includes('/groups/')) {
+                    groupFallback = href;
+                }
+            }
+            return {community, thread: thread || groupFallback};
+        }""")
+        if link_data.get("community"):
+            community_name = link_data["community"]["name"]
+            community_url = link_data["community"]["url"]
+        thread_url = link_data.get("thread") or ""
     except Exception:
         pass
+
+    # Extract author — name appears on a line before "Pubblicato in" or after initials block
+    author = ""
+    lines = rp_text.split("\n")
+    for i, line in enumerate(lines):
+        low = line.strip().lower()
+        if "pubblicato in" in low or "annuncio pubblicato in" in low or "posted in" in low:
+            for j in range(max(0, i - 5), i):
+                candidate = lines[j].strip()
+                if (candidate and len(candidate) > 3 and
+                    not candidate.startswith("http") and
+                    "riepilog" not in candidate.lower() and
+                    "mostra" not in candidate.lower() and
+                    "cambia" not in candidate.lower() and
+                    ":" not in candidate[:3]):
+                    author = candidate.split(",")[0].strip()
+                    break
+            break
 
     # Full body text of the email (for later analysis)
     body_text = rp_text
@@ -244,21 +297,22 @@ def read_reading_pane(page):
     }
 
 
-def has_processed_category(page):
+def has_processed_category(page, rp_text=None):
     """Check if the currently displayed email has the processed category label."""
     try:
-        rp_text = page.locator('[role="main"]').first.inner_text()
+        if rp_text is None:
+            rp_text = page.locator('[role="main"]').first.inner_text()
         return CATEGORY.lower() in rp_text.lower()
     except Exception:
         return False
 
 
 def extract_all_via_keyboard(page, total_count, include_processed=False):
-    """Click first result, then navigate with Down arrow. Extract from reading pane."""
+    """Click first result, then navigate with Down arrow. Extract from reading pane.
+    Uses total_count as estimate for logging; continues until end of list is detected."""
     emails = []
     null_count = 0
-    stuck_count = 0
-    last_subject = ""
+    MAX_ADVANCE_RETRIES = 4  # stop after N consecutive ArrowDown with no pane change
 
     # Scroll listbox back to top
     bbox = page.locator('[role="listbox"]').first.bounding_box()
@@ -275,62 +329,61 @@ def extract_all_via_keyboard(page, total_count, include_processed=False):
     first.click()
     page.wait_for_timeout(2000)
 
-    for i in range(total_count):
-        em = read_reading_pane(page)
-
-        if em is None:
-            page.wait_for_timeout(2000)
+    i = 0
+    while True:
+        try:
             em = read_reading_pane(page)
 
-        if em:
-            current_subject = em.get('subject', '')
-            if current_subject == last_subject:
-                stuck_count += 1
-            else:
-                stuck_count = 0
-            last_subject = current_subject
-
-            if stuck_count >= 5:
-                print(f"    [{i+1}/{total_count}] STUCK: navigation appears frozen at: {current_subject[:60]}")
-                print(f"    Attempting to unstick by scrolling listbox...")
-                lb_box = page.locator('[role="listbox"]').first.bounding_box()
-                if lb_box:
-                    lx = lb_box['x'] + lb_box['width'] / 2
-                    ly = lb_box['y'] + lb_box['height'] / 2
-                    page.mouse.move(lx, ly)
-                    page.mouse.wheel(0, 300)
-                    page.wait_for_timeout(1500)
-                    options = page.locator('[role="listbox"] [role="option"]').all()
-                    if len(options) > 1:
-                        options[-1].click()
-                        page.wait_for_timeout(2000)
-                        stuck_count = 0
-                        last_subject = ""
-                        em = read_reading_pane(page)
-                        if em is None:
-                            print(f"    [{i+1}/{total_count}] STILL NULL after unstick attempt")
-                            null_count += 1
-                            if i < total_count - 1:
-                                page.keyboard.press("ArrowDown")
-                                page.wait_for_timeout(1500)
-                            continue
-
-            if include_processed or not has_processed_category(page):
-                emails.append(em)
-                print(f"    [{i+1}/{total_count}] {em.get('post_type', '?')}: {em.get('post_title', '?')[:60]}")
-            else:
-                print(f"    [{i+1}/{total_count}] SKIP (already categorized): {em.get('subject','')[:60]}")
-        else:
-            null_count += 1
-            print(f"    [{i+1}/{total_count}] NULL: reading pane returned no data")
-
-        if i < total_count - 1:
-            fp_before = get_reading_pane_fingerprint(page)
-            page.keyboard.press("ArrowDown")
-            changed = wait_for_pane_change(page, fp_before, max_wait_ms=5000)
-            if not changed:
+            if em is None:
+                # Retry: go back to previous email, then forward again to force reload
+                page.keyboard.press("ArrowUp")
                 page.wait_for_timeout(1000)
-            page.wait_for_timeout(500)
+                page.keyboard.press("ArrowDown")
+                page.wait_for_timeout(10000)
+                em = read_reading_pane(page)
+
+            if em:
+                if include_processed or not has_processed_category(page, em.get('body_text', '')):
+                    emails.append(em)
+                    print(f"    [{i+1}/{total_count}+] {em.get('post_type', '?')}: {em.get('post_title', '?')[:60]}")
+                else:
+                    print(f"    [{i+1}/{total_count}+] SKIP (already categorized): {em.get('subject','')[:60]}")
+            else:
+                null_count += 1
+                print(f"    [{i+1}/{total_count}+] NULL: reading pane returned no data")
+
+            # Try to advance to next item
+            advanced = False
+            for attempt in range(MAX_ADVANCE_RETRIES):
+                fp_before = get_reading_pane_fingerprint(page)
+                page.keyboard.press("ArrowDown")
+                changed = wait_for_pane_change(page, fp_before, max_wait_ms=5000)
+                if changed:
+                    advanced = True
+                    page.wait_for_timeout(500)
+                    break
+                else:
+                    page.wait_for_timeout(1000)
+                    # On second retry, scroll listbox to force virtualization to load more
+                    if attempt == 1:
+                        lb_box = page.locator('[role="listbox"]').first.bounding_box()
+                        if lb_box:
+                            lx = lb_box['x'] + lb_box['width'] / 2
+                            ly = lb_box['y'] + lb_box['height'] / 2
+                            page.mouse.move(lx, ly)
+                            page.mouse.wheel(0, 400)
+                            page.wait_for_timeout(1500)
+
+            if not advanced:
+                print(f"  End of list reached after {i+1} items (pane unchanged for {MAX_ADVANCE_RETRIES} retries)")
+                break
+
+        except Exception as e:
+            print(f"  ERROR at item {i+1}: {type(e).__name__}: {e}")
+            print(f"  Returning {len(emails)} emails collected so far")
+            break
+
+        i += 1
 
     if null_count > 0:
         print(f"  WARNING: {null_count} items returned NULL from reading pane (silently missed)")

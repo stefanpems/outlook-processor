@@ -117,9 +117,9 @@ def count_all_results(page):
     cy = bbox['y'] + bbox['height'] / 2
 
     stable = 0
-    while stable < 3:
+    while stable < 5:
         page.mouse.move(cx, cy)
-        page.mouse.wheel(0, 400)
+        page.mouse.wheel(0, 600)
         page.wait_for_timeout(1500)
         n = read_visible()
         stable = 0 if n > 0 else stable + 1
@@ -235,6 +235,38 @@ def extract_all_via_keyboard(page, total_count, include_processed=False):
                 # Extra wait and retry
                 page.wait_for_timeout(1000)
             page.wait_for_timeout(500)
+
+    # ── Phase 2: continue beyond total_count to catch items missed by scroll-count ──
+    extra_end_streak = 0
+    idx = total_count
+    while extra_end_streak < 5:
+        fp_before = get_reading_pane_fingerprint(page)
+        page.keyboard.press("ArrowDown")
+        changed = wait_for_pane_change(page, fp_before, max_wait_ms=3000)
+        if not changed:
+            extra_end_streak += 1
+            continue
+        extra_end_streak = 0
+        page.wait_for_timeout(500)
+        idx += 1
+
+        em = read_reading_pane(page)
+        if em is None:
+            page.wait_for_timeout(2000)
+            em = read_reading_pane(page)
+
+        if em:
+            if include_processed or not has_processed_category(page):
+                emails.append(em)
+                print(f"    [{idx}/{total_count}+] EXTRA: {em.get('subject','')[:60]}")
+            else:
+                print(f"    [{idx}/{total_count}+] SKIP (already categorized): {em.get('subject','')[:60]}")
+        else:
+            null_count += 1
+            print(f"    [{idx}/{total_count}+] NULL: reading pane returned no data")
+
+    if idx > total_count:
+        print(f"  Phase 2 found {idx - total_count} extra item(s) beyond initial count of {total_count}")
 
     if null_count > 0:
         print(f"  WARNING: {null_count} items returned NULL from reading pane (silently missed)")

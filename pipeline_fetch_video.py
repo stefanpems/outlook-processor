@@ -73,6 +73,12 @@ def fetch_video_metadata(url):
         browser = p.chromium.connect_over_cdp(CDP_URL)
         ctx = browser.contexts[0]
         page = ctx.new_page()
+        # Mute video elements before they start playing
+        page.add_init_script("""
+            new MutationObserver(() => {
+                document.querySelectorAll('video').forEach(v => { v.muted = true; });
+            }).observe(document.documentElement, {childList: true, subtree: true});
+        """)
 
         try:
             page.goto(canonical_url, wait_until="domcontentloaded", timeout=30000)
