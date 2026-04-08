@@ -224,7 +224,35 @@ All scripts from `blog-notifications`, `video-notifications`, and `vivaengage-no
 
 ---
 
-### 8. youtube-transcript-downloader
+### 8. teams-meeting-recording
+
+**What it does:**
+Registers a Teams meeting recording in the SharePoint VideosMSInt list from its SharePoint Stream URL. Connects to Edge via CDP, navigates to the Stream page with all media muted, extracts metadata (title, published date, duration) from the page DOM and video element, opens the transcript panel and scrapes all transcript entries by scrolling the virtualized list, computes the SHA256 hex digest of the URL as a dedup key, saves the transcript to `teams_transcripts/<sha256>.txt`. The Copilot agent then generates a 100–200 word English HTML summary from the transcript and classifies the technology using the configured tech map. Finally, creates the SP item via REST API (POST + MERGE for Link field), with built-in duplicate detection by SHA256.
+
+**Prerequisites:**
+- Edge running with CDP debug profile, user authenticated on SharePoint.
+- The recording must be hosted on SharePoint Stream and accessible in the authenticated Edge session.
+- The transcript panel must be visible on the Stream page (the script scrolls the virtualized list to collect all entries).
+
+**Prompt structure and behavior variants:**
+
+| Prompt pattern | Behavior |
+|----------------|----------|
+| `"Registra questo meeting recording https://..."` | Registers a single Teams meeting recording from its Stream URL. |
+| `"Registra queste registrazioni Teams: https://url1 e https://url2"` | Registers multiple recordings in sequence. |
+
+The skill always confirms the URL list before starting. For each URL, the full pipeline runs in order: fetch metadata + transcript → generate summary → classify tech → create SP item.
+
+**Python scripts used:**
+
+| Script | Role in this skill |
+|--------|--------------------|
+| `pipeline_fetch_teams_meeting.py` | Fetch metadata + transcript from a SharePoint Stream page via CDP |
+| `pipeline_teams_sp_create.py` | Create a new VideosMSInt SP item via REST API (with built-in dedup check by SHA256) |
+
+---
+
+### 9. youtube-transcript-downloader
 
 **What it does:**
 Downloads the transcript (auto-generated or manual subtitles) of a YouTube video and saves it as a text file. Connects to Edge via CDP, navigates to the YouTube video page, opens the transcript panel, scrapes all transcript segments from the DOM, and saves the text to `yt_transcripts/yt_<VIDEO_ID>.txt`. This approach avoids YouTube API rate limiting (429 errors) because the transcript is loaded by YouTube's own frontend.
@@ -285,3 +313,5 @@ The table below lists all Python scripts in the workspace, their purpose, and wh
 | `ve-notifications-process.py` | Open a VE thread URL via CDP and read all replies/comments (expands collapsed content). | `copilot-instructions.md`, `vivaengage-notifications` |
 | `ve-notifications-email-actions.py` | Search, select all, categorize and move VE notification emails in Outlook. Supports `--batch-file` for bulk operations. | `copilot-instructions.md`, `vivaengage-notifications` |
 | `ve-notifications-build-html.py` | Build HTML digest from VE notification summaries JSON → `output/`. | `copilot-instructions.md`, `vivaengage-notifications` |
+| `pipeline_fetch_teams_meeting.py` | Fetch metadata + transcript from a SharePoint Stream page via CDP. Extracts title, date, duration, transcript; computes SHA256 of URL. Saves transcript to `teams_transcripts/<sha256>.txt`. | `copilot-instructions.md`, `teams-meeting-recording` |
+| `pipeline_teams_sp_create.py` | Create a new VideosMSInt SP item via REST API (POST + MERGE for Link). Includes built-in dedup check by SHA256. | `copilot-instructions.md`, `teams-meeting-recording` |

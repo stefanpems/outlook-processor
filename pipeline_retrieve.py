@@ -8,7 +8,7 @@ Output: Saves results to session_state.json and prints summary JSON.
 """
 import json, re, os, sys
 from playwright.sync_api import sync_playwright
-from cdp_helper import ensure_edge_cdp
+from cdp_helper import ensure_edge_cdp, ensure_all_folders_scope
 
 sys.stdout = open(sys.stdout.fileno(), mode="w", buffering=1)
 
@@ -77,6 +77,8 @@ def search_emails(page, date_from, date_to, include_processed=False):
     page.wait_for_timeout(500)
     page.keyboard.press("Enter")
     page.wait_for_timeout(5000)
+
+    ensure_all_folders_scope(page)
 
     # Retry a few times — Outlook may take a moment to render results
     for attempt in range(4):

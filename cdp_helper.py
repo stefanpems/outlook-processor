@@ -76,3 +76,58 @@ def ensure_edge_cdp() -> None:
     print(f"[cdp_helper] WARNING: Edge CDP still not reachable after {max_wait}s. "
           "Proceeding anyway — connect_over_cdp may fail.",
           file=sys.stderr, flush=True)
+
+
+def ensure_all_folders_scope(page) -> bool:
+    """After an Outlook search, expand scope to 'Tutte le cartelle' if needed.
+
+    Outlook Web defaults search scope to the current folder (usually Inbox).
+    Emails auto-sorted by mail rules into other folders won't appear.
+    This function checks the scope indicator near the top of the page and
+    clicks to expand to all folders when necessary.
+
+    Returns True if scope was already 'all' or was successfully expanded.
+    """
+    # Look for the scope indicator button near the top-left of the search bar
+    for btn in page.query_selector_all("button"):
+        try:
+            if not btn.is_visible():
+                continue
+            box = btn.bounding_box()
+            if not box or box["y"] > 50 or box["x"] > 350:
+                continue
+            txt = (btn.inner_text() or "").strip().lower()
+            # Already on "all folders" scope
+            if "tutte le cartelle" in txt or "all folder" in txt or "all mail" in txt:
+                return True
+            # Narrow scope detected — need to expand
+            if any(k in txt for k in ["posta in arrivo", "inbox", "cartella corrente",
+                                       "current folder", "tech-", "tech "]):
+                print(f"[cdp_helper] Search scope is '{btn.inner_text().strip()}', expanding to all folders...",
+                      file=sys.stderr, flush=True)
+                btn.click()
+                page.wait_for_timeout(2000)
+                # Select "Tutte le cartelle" from dropdown
+                for opt in page.query_selector_all(
+                    "[role='option'], [role='menuitem'], [role='menuitemradio'], button"
+                ):
+                    try:
+                        ot = (opt.inner_text() or "").strip()
+                        if "tutte le cartelle" in ot.lower() or "all folder" in ot.lower():
+                            opt.click()
+                            page.wait_for_timeout(4000)
+                            print("[cdp_helper] Scope expanded to 'Tutte le cartelle'.",
+                                  file=sys.stderr, flush=True)
+                            return True
+                    except Exception:
+                        pass
+                # Dropdown didn't have the expected option — dismiss and continue
+                page.keyboard.press("Escape")
+                page.wait_for_timeout(500)
+                print("[cdp_helper] WARNING: could not find 'Tutte le cartelle' option in dropdown.",
+                      file=sys.stderr, flush=True)
+                return False
+        except Exception:
+            pass
+    # No scope button found — may already be fine or search UI is different
+    return True

@@ -10,6 +10,9 @@ blog_cache/
 # YouTube transcripts
 yt_transcripts/
 
+# Teams meeting transcripts
+teams_transcripts/
+
 # Session and cached data
 session_state.json
 sp_blogposts.json

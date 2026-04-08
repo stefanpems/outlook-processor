@@ -12,7 +12,7 @@ Output: JSON to stdout with categorized, moved, emails_found.
 """
 import json, re, os, sys
 from playwright.sync_api import sync_playwright
-from cdp_helper import ensure_edge_cdp
+from cdp_helper import ensure_edge_cdp, ensure_all_folders_scope
 
 sys.stdout = open(sys.stdout.fileno(), mode="w", buffering=1)
 
@@ -53,6 +53,8 @@ def do_search(page, title):
     page.wait_for_timeout(500)
     page.keyboard.press("Enter")
     page.wait_for_timeout(5000)
+
+    ensure_all_folders_scope(page)
 
     rows = page.query_selector_all("div[role='option']")
     return len(rows)
