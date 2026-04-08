@@ -135,34 +135,22 @@ def get_reading_pane_fingerprint(page):
         return ""
 
 
-def wait_for_pane_change(page, old_fingerprint, max_wait_ms=5000):
-    """Wait until the reading pane content changes from old_fingerprint."""
-    try:
-        page.wait_for_function(
-            """(oldFp) => {
-                const el = document.querySelector('[role="main"]');
-                if (!el) return false;
-                const newFp = el.innerText.trim().substring(0, 300);
-                return newFp && newFp !== oldFp;
-            }""",
-            old_fingerprint,
-            timeout=max_wait_ms
-        )
-        return True
-    except Exception:
-        return False
+def wait_for_pane_change(page, old_fingerprint, max_wait_ms=15000):
+    """Wait until the reading pane content changes from old_fingerprint.
+    Uses Python-side polling to avoid cross-boundary string comparison issues."""
+    elapsed = 0
+    interval = 500  # ms
+    while elapsed < max_wait_ms:
+        page.wait_for_timeout(interval)
+        elapsed += interval
+        current = get_reading_pane_fingerprint(page)
+        if current and current != old_fingerprint:
+            return True
+    return False
 
 
 def expand_and_wait_for_content(page, max_wait_ms=8000):
-    """Click 'Mostra tutto il contenuto ora' if present, then wait for full content load."""
-    # Click "Mostra tutto il contenuto ora" to accelerate loading
-    try:
-        btn = page.locator('[role="main"]').get_by_text("Mostra tutto il contenuto ora", exact=False)
-        if btn.count() > 0:
-            btn.first.click()
-            page.wait_for_timeout(1500)
-    except Exception:
-        pass
+    """Wait for VE notification email content to fully load in the reading pane."""
 
     # Wait until "Pubblicato in" / "Posted in" appears — single JS check in browser, no round-trips
     try:
@@ -324,8 +312,30 @@ def extract_all_via_keyboard(page, total_count, include_processed=False):
             page.mouse.wheel(0, -500)
         page.wait_for_timeout(1000)
 
-    # Click the first item
-    first = page.locator('[role="listbox"] [role="option"]').first
+    # Skip "Risultati principali" section — click the first option AFTER the second header
+    # Outlook search results have: [Header: "Risultati principali"] [dup options...] [Header: "Tutti i risultati"/date] [real options...]
+    # The second header's name varies (e.g., "Tutti i risultati", date-based). We find the
+    # first option that follows ANY header after the first one.
+    first_real_option_index = page.evaluate("""() => {
+        const lb = document.querySelector('[role="listbox"]');
+        if (!lb) return 0;
+        const options = lb.querySelectorAll('[role="option"]');
+        const headers = lb.querySelectorAll('[role="button"]');
+        if (headers.length < 2) return 0; // no "Risultati principali" section
+        // Get the bounding rect of the second header
+        const secondHeader = headers[1];
+        const headerBottom = secondHeader.getBoundingClientRect().bottom;
+        // Find the first option below that header
+        for (let i = 0; i < options.length; i++) {
+            if (options[i].getBoundingClientRect().top >= headerBottom) return i;
+        }
+        return 0;
+    }""")
+    
+    if first_real_option_index > 0:
+        print(f"  Skipping 'Risultati principali' section ({first_real_option_index} items), starting at option index {first_real_option_index}")
+    
+    first = page.locator('[role="listbox"] [role="option"]').nth(first_real_option_index)
     first.click()
     page.wait_for_timeout(2000)
 
@@ -352,12 +362,29 @@ def extract_all_via_keyboard(page, total_count, include_processed=False):
                 null_count += 1
                 print(f"    [{i+1}/{total_count}+] NULL: reading pane returned no data")
 
+            # Re-focus the message list (Outlook may have moved focus to reading pane)
+            try:
+                page.evaluate("""() => {
+                    const opts = document.querySelectorAll('[role="listbox"] [role="option"]');
+                    for (const opt of opts) {
+                        if (opt.getAttribute('tabindex') === '0' || opt.getAttribute('aria-selected') === 'true') {
+                            opt.focus();
+                            return;
+                        }
+                    }
+                    const lb = document.querySelector('[role="listbox"]');
+                    if (lb) lb.focus();
+                }""")
+                page.wait_for_timeout(300)
+            except Exception:
+                pass
+
             # Try to advance to next item
             advanced = False
             for attempt in range(MAX_ADVANCE_RETRIES):
                 fp_before = get_reading_pane_fingerprint(page)
                 page.keyboard.press("ArrowDown")
-                changed = wait_for_pane_change(page, fp_before, max_wait_ms=5000)
+                changed = wait_for_pane_change(page, fp_before, max_wait_ms=15000)
                 if changed:
                     advanced = True
                     page.wait_for_timeout(500)
