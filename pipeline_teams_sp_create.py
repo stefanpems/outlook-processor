@@ -29,6 +29,28 @@ FIELDS = TM_CFG["fields"]
 TECH_MAP_IDS = {k: int(v) for k, v in CONFIG["tech_map"].items()}
 
 
+def shorten_stream_url(url):
+    """Shorten a SharePoint Stream URL to fit the 255-char SP Link field limit.
+    Strips referrer/referrerScenario params, falls back to direct file URL."""
+    from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+    parsed = urlparse(url)
+    params = parse_qs(parsed.query, keep_blank_values=True)
+    # Keep only essential params (id, share)
+    keep = {k: v[0] for k, v in params.items() if k in ("id", "share")}
+    short = urlunparse((parsed.scheme, parsed.netloc, parsed.path, "", urlencode(keep), ""))
+    if len(short) <= 255:
+        return short
+    # Still too long: use direct file URL with ?web=1
+    file_id = params.get("id", [""])[0]
+    if file_id:
+        direct = f"{parsed.scheme}://{parsed.netloc}{unquote(file_id)}?web=1"
+        # Re-encode spaces only
+        direct = direct.replace(" ", "%20")
+        if len(direct) <= 255:
+            return direct
+    return short[:255]
+
+
 def get_tech_ids(tech_str):
     """Parse comma-separated tech string and return list of SP lookup IDs."""
     if not tech_str:
@@ -149,6 +171,9 @@ def create_sp_item(page, digest, entity_type, item_data):
     # Update Link field via MERGE (SP.FieldUrlValue can't be set in POST)
     if result.get("ok") and link:
         new_id = result["id"]
+        # SP URL field max is ~255 chars; shorten stream URLs if needed
+        if len(link) > 255:
+            link = shorten_stream_url(link)
         link_body = json.dumps(
             {
                 "__metadata": {"type": entity_type},
@@ -190,11 +215,77 @@ def create_sp_item(page, digest, entity_type, item_data):
     return result
 
 
+def fix_link(page, digest, entity_type, item_id, link):
+    """Retry setting the Link field on an existing SP item via MERGE."""
+    link_body = json.dumps(
+        {
+            "__metadata": {"type": entity_type},
+            "Link": {
+                "__metadata": {"type": "SP.FieldUrlValue"},
+                "Url": link,
+                "Description": link,
+            },
+        },
+        ensure_ascii=False,
+    )
+    link_esc = link_body.replace("\\", "\\\\").replace("`", "\\`").replace("${", "\\${")
+    return page.evaluate(f"""async () => {{
+        try {{
+            const resp = await fetch(
+                "{SP_API}/items({item_id})",
+                {{
+                    method: "POST",
+                    headers: {{
+                        "Accept": "application/json;odata=verbose",
+                        "Content-Type": "application/json;odata=verbose",
+                        "X-RequestDigest": `{digest}`,
+                        "IF-MATCH": "*",
+                        "X-HTTP-Method": "MERGE"
+                    }},
+                    body: `{link_esc}`
+                }}
+            );
+            if (!resp.ok) {{
+                const txt = await resp.text();
+                return {{ ok: false, status: resp.status, error: txt.substring(0, 500) }};
+            }}
+            return {{ ok: true, status: resp.status }};
+        }} catch(e) {{
+            return {{ ok: false, error: e.message }};
+        }}
+    }}""")
+
+
 def main():
     args = sys.argv[1:]
     if not args:
         print("Usage: python pipeline_teams_sp_create.py <input.json>")
+        print("       python pipeline_teams_sp_create.py --fix-link <id> <url>")
         sys.exit(1)
+
+    # --fix-link mode: retry setting Link on an existing item
+    if args[0] == "--fix-link":
+        if len(args) < 3:
+            print("Usage: python pipeline_teams_sp_create.py --fix-link <id> <url>")
+            sys.exit(1)
+        fix_id = int(args[1])
+        fix_url = args[2]
+        p = sync_playwright().start()
+        try:
+            ensure_edge_cdp()
+            browser = p.chromium.connect_over_cdp(CDP_URL)
+            ctx = browser.contexts[0]
+            sp_page = ctx.new_page()
+            sp_page.goto(SP_LIST_URL, wait_until="domcontentloaded", timeout=30000)
+            sp_page.wait_for_timeout(3000)
+            entity_type = discover_entity_type(sp_page) or SP_ENTITY_TYPE
+            digest = get_digest(sp_page)
+            result = fix_link(sp_page, digest, entity_type, fix_id, fix_url)
+            sp_page.close()
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+        finally:
+            p.stop()
+        return
 
     item_data = json.load(open(args[0], encoding="utf-8"))
 

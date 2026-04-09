@@ -28,10 +28,8 @@ __pycache__/
 debug_*.png
 viva_engage_*.png
 
-# Viva Engage intermediate/temp files
-_ve_*.json
-_ve_*.log
-_ve_*.txt
+# Temporary/intermediate files (convention: _* prefix)
+_*.*
 ve_notifications_cache.json
 
 # Deprecated files with hardcoded data
