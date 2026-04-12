@@ -94,7 +94,7 @@ def do_search(page, title):
     page.keyboard.press("Control+a")
     page.keyboard.press("Backspace")
     page.wait_for_timeout(200)
-    sb.fill(query)
+    page.keyboard.type(query, delay=5)
     page.wait_for_timeout(500)
     page.keyboard.press("Enter")
     page.wait_for_timeout(6000)

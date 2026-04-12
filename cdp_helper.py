@@ -78,6 +78,29 @@ def ensure_edge_cdp() -> None:
           file=sys.stderr, flush=True)
 
 
+def safe_fill_search(page, text: str) -> None:
+    """Type text into Outlook's #topSearchInput using keyboard events.
+
+    Playwright's .fill() hangs on the new Copilot-integrated search bar.
+    This helper clicks the input, clears it via Ctrl+A/Delete, then types
+    character-by-character with keyboard.type().
+    """
+    si = page.query_selector("#topSearchInput")
+    if not si:
+        page.wait_for_timeout(3000)
+        si = page.query_selector("#topSearchInput")
+    if not si:
+        raise RuntimeError("Could not find #topSearchInput")
+    si.click()
+    page.wait_for_timeout(300)
+    page.keyboard.press("Control+a")
+    page.keyboard.press("Delete")
+    page.wait_for_timeout(200)
+    if text:
+        page.keyboard.type(text, delay=5)
+    page.wait_for_timeout(200)
+
+
 def ensure_all_folders_scope(page) -> bool:
     """After an Outlook search, expand scope to 'Tutte le cartelle' if needed.
 

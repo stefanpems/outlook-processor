@@ -11,7 +11,7 @@ Output: Saves results to session_state.json and prints summary JSON.
 """
 import json, re, os, sys
 from playwright.sync_api import sync_playwright
-from cdp_helper import ensure_edge_cdp, ensure_all_folders_scope
+from cdp_helper import ensure_edge_cdp, ensure_all_folders_scope, safe_fill_search
 
 sys.stdout = open(sys.stdout.fileno(), mode="w", buffering=1)
 
@@ -61,13 +61,7 @@ def connect_to_outlook():
 def search_emails(page, date_from, date_to, include_processed=False):
     """Execute Outlook search for video emails in date range."""
     page.evaluate("window.location.href = 'https://outlook.cloud.microsoft/mail/'")
-    page.wait_for_timeout(4000)
-
-    search_input = page.locator("#topSearchInput")
-    search_input.click()
-    page.wait_for_timeout(500)
-    search_input.fill("")
-    page.wait_for_timeout(300)
+    page.wait_for_timeout(5000)
 
     query = f"from:{SENDER} subject:{SUBJECT_PREFIX} received:{date_from}..{date_to}"
     if not include_processed:
@@ -75,8 +69,7 @@ def search_emails(page, date_from, date_to, include_processed=False):
     for term in EXCLUDE_TERMS:
         query += f' -{term}'
     print(f"  Query: {query}")
-    search_input.fill(query)
-    page.wait_for_timeout(500)
+    safe_fill_search(page, query)
     page.keyboard.press("Enter")
     page.wait_for_timeout(5000)
 

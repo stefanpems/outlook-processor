@@ -75,7 +75,7 @@ def do_search(page):
     query = f"from:{SENDER} subject:{SUBJECT_PREFIX} received:{DATE_FROM}..{DATE_TO} -\"By agent - Blog\""
     for term in EXCLUDE_TERMS:
         query += f' -{term}'
-    sb.fill(query)
+    page.keyboard.type(query, delay=5)
     page.wait_for_timeout(500)
     page.keyboard.press("Enter")
     page.wait_for_timeout(5000)
@@ -238,7 +238,7 @@ def search_for_one(page, subject):
     query = f"from:{SENDER} subject:({SUBJECT_PREFIX} {short}) -\"By agent - Blog\""
     for term in EXCLUDE_TERMS:
         query += f' -{term}'
-    sb.fill(query)
+    page.keyboard.type(query, delay=5)
     page.wait_for_timeout(500)
     page.keyboard.press("Enter")
     page.wait_for_timeout(5000)
