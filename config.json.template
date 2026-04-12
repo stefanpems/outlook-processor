@@ -7,7 +7,8 @@
     "exclude_terms": ["ExampleExclude"]
   },
   "email_report": {
-    "default_recipients": "user@example.com"
+    "default_recipients": "user@example.com",
+    "max_html_body_size_kb": 12
   },
   "sharepoint": {
     "site_base": "https://yourtenant-my.sharepoint.com/personal/youruser_yourtenant_com",

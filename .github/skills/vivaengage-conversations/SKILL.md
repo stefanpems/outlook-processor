@@ -245,9 +245,12 @@ Same as Mode 1, but additionally:
 2. Use the `send_email` MCP tool to send the email:
    - **To:** recipients from `config.json → viva_engage.default_recipients` (or user-specified)
    - **Subject:** `PescoPedia Viva Engage Digest - From: YYYY.MM.DD To: YYYY.MM.DD`
-   - **Body:** the **complete, unmodified** HTML content read from the file. Do NOT summarize, truncate, or alter it in any way — paste the entire file content verbatim.
+   - **Body:** **depends on file size** —
+     - Read `config.json → email_report.max_html_body_size_kb` (default 12) for the size threshold.
+     - If the HTML file is **≤ threshold**: use the **complete, unmodified** HTML content read from the file. Do NOT summarize, truncate, or alter it — paste the entire file content verbatim.
+     - If the HTML file is **> threshold**: use a **short HTML message** inviting the reader to open the attached report, e.g.: `<html><body style="font-family:'Segoe UI',sans-serif;"><h2 style="color:#4361ee;">PescoPedia Viva Engage Digest</h2><p>Period: <b>{date_from} – {date_to}</b></p><p>The full report is attached as an HTML file. Please open the attachment for the complete digest.</p></body></html>`
    - **attachmentName:** the HTML file name (e.g. `Viva_Engage-Digest-From-2026.04.03-To-2026.04.06.html`)
-   - **attachmentContent:** the HTML file content encoded as **base64**
+   - **attachmentContent:** the HTML file content encoded as **base64** (always the full file, regardless of body choice)
 3. Confirm to the user that the email was sent and the HTML file was saved
 
 ### Step 5 — Categorize and Move VE Notification Emails
