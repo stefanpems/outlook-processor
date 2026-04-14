@@ -227,6 +227,8 @@ The `summary_lines` array uses the same summary format as the `vivaengage-conver
 - `<b>Comments:</b>` — well-formatted synthesis (100-150 words) (omit if none)
 - `<b>Follow-up:</b>` — only if concrete action committed (omit otherwise)
 
+> **Formatting note:** Section labels (`Question:`, `Author:`, `Answer:`, `Post:`, `Main responder(s):`, `Follow-up:`) are auto-restyled by `ve-notifications-build-html.py` into uppercase grey labels (`.section-label` CSS class) to distinguish them from bold content text. Always use the `<b>Label:</b>` format above — the build script handles the visual differentiation.
+
 #### 4.2 — Build HTML Report
 
 ```bash

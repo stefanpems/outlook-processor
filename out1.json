@@ -1,0 +1,41 @@
+{
+  "video_id": "T31PmwhKOZY",
+  "url": "https://www.youtube.com/watch?v=T31PmwhKOZY",
+  "title": "Advancing web application Protection with Azure WAF: Ruleset and Security Enhancements",
+  "published_date": "2026-01-22",
+  "duration_seconds": 3580,
+  "duration_formatted": "1h 00m",
+  "description": "Thursday, January 22nd, 2026 | 8:00AM – 9:00AM (PT, Redmond Time webinar recording date) \n\nAzure Network Security | Advancing web application Protection with Azure WAF: Ruleset and Security Enhancements\n\nPresenter: Andrew Mathu and Saleem Bseeu\n\nDescription: \nAs web applications continue to face increasingly sophisticated threats, Azure Web Application Firewall (WAF) provides the intelligence and flexibility to keep your defenses ahead of attackers. In this session, we’ll explore the latest Azure WAF ruleset and security enhancements designed to strengthen your protection, reduce false positives, and simplify management. You’ll learn how to fine-tune WAF configurations, gain deeper visibility into threat patterns, and ensure consistent security across your web workloads. Whether you’re just getting started with Azure WAF or looking to optimize existing deployments, this webinar will help you confidently build a more resilient and adaptive web application security posture.\n\nResources\nhttps://learn.microsoft.com/en-us/azu...\n\nhttps://learn.microsoft.com/en-us/azu...\n\nhttps://techcommunity.microsoft.com/b...\n\nhttps://techcommunity.microsoft.com/b...\n\nhttps://techcommunity.microsoft.com/b...\n\nhttps://learn.microsoft.com/en-us/azu...\n\nTimestamps:\n00:00 – Introduction\n01:06 – Understanding Azure WAF Rulesets\n21:05 – Ruleset Enhancements and New Features\n30:15 – Demo\n58:00 – Q&A/Close\n\nFor those of you who may have additional questions on the topic we covered or other product related questions, please feel free to raise them on our Microsoft Tech-Community discussion space at: http://aka.ms/ANSCommunity\nChapters\nView all\nIntroduction\n0:00\nUnderstanding Azure WAF Rulesets\n1:06\nRuleset Enhancements and New Features\n21:05\nDemo\n30:15\nQ&A/Close\n58:00\nTranscript\n\nFollow along using the transcript.\n\nShow transcript\nMicrosoft Security Community\n38.3K subscribers\nVideos\nAbout\nSubscribe\nLinked In\nShow less\n",
+  "chapters": [
+    {
+      "title": "– Introduction",
+      "time": "00:00",
+      "seconds": 0,
+      "url": "https://www.youtube.com/watch?v=T31PmwhKOZY&t=0s"
+    },
+    {
+      "title": "– Understanding Azure WAF Rulesets",
+      "time": "01:06",
+      "seconds": 66,
+      "url": "https://www.youtube.com/watch?v=T31PmwhKOZY&t=66s"
+    },
+    {
+      "title": "– Ruleset Enhancements and New Features",
+      "time": "21:05",
+      "seconds": 1265,
+      "url": "https://www.youtube.com/watch?v=T31PmwhKOZY&t=1265s"
+    },
+    {
+      "title": "– Demo",
+      "time": "30:15",
+      "seconds": 1815,
+      "url": "https://www.youtube.com/watch?v=T31PmwhKOZY&t=1815s"
+    },
+    {
+      "title": "– Q&A/Close",
+      "time": "58:00",
+      "seconds": 3480,
+      "url": "https://www.youtube.com/watch?v=T31PmwhKOZY&t=3480s"
+    }
+  ]
+}

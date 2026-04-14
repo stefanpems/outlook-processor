@@ -253,6 +253,10 @@ def fetch_teams_meeting(url):
             print(f"Title: {title}", file=sys.stderr)
 
             # --- Extract published date ---
+            # The metadata area below the video (title, date, views) loads with
+            # a slight delay on Stream pages.  Wait a few seconds for it.
+            page.wait_for_timeout(5000)
+
             page_date = page.evaluate("""() => {
                 // Try various date selectors in Stream / SP
                 const selectors = [
@@ -271,14 +275,33 @@ def fetch_teams_meeting(url):
                     'meta[name="created"], meta[property="article:published_time"]'
                 );
                 if (meta && meta.content) return meta.content;
+                // Fallback: scan text near the title for a date string.
+                // Stream renders "Month DD, YYYY" (e.g. "April 13, 2026") in
+                // the metadata strip below the video title / above view count.
+                const body = document.body.innerText || '';
+                const m = body.match(
+                    /(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s*\d{4}/
+                );
+                if (m) return m[0];
                 return '';
             }""")
 
             published_date = ""
             if page_date:
+                # Try ISO-like YYYY-MM-DD or YYYY/MM/DD
                 m = re.search(r"(\d{4})[-/](\d{2})[-/](\d{2})", page_date)
                 if m:
                     published_date = f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
+                else:
+                    # Try "Month DD, YYYY" (English)
+                    import datetime as _dt
+                    for fmt in ("%B %d, %Y", "%b %d, %Y"):
+                        try:
+                            d = _dt.datetime.strptime(page_date.strip(), fmt)
+                            published_date = d.strftime("%Y-%m-%d")
+                            break
+                        except ValueError:
+                            continue
             if not published_date:
                 published_date = filename_date or ""
 

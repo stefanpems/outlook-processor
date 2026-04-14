@@ -135,6 +135,10 @@ h1 {
   margin-top: 6px;
 }
 .conv-body b { color: #1a1a2e; }
+.section-label {
+  color: #5a6a7a; font-weight: 700; font-size: 13px;
+  text-transform: uppercase; letter-spacing: 0.3px;
+}
 .images-tag {
   font-size: 12px; color: #888; margin-left: 8px;
 }
@@ -152,6 +156,25 @@ h1 {
   padding: 8px 0;
 }
 """
+
+
+# Section labels to restyle from <b>Label:</b> to <span class="section-label">LABEL:</span>
+_SECTION_LABELS = [
+    "Question:", "Author:", "Answer:", "Post:",
+    "Main responder(s):", "Follow-up:",
+]
+_SECTION_RE = re.compile(
+    r'<b>(' + '|'.join(re.escape(l.rstrip(':')) for l in _SECTION_LABELS) + r'):</b>',
+    re.IGNORECASE,
+)
+
+
+def _restyle_section_labels(line: str) -> str:
+    """Replace <b>Label:</b> with <span class="section-label">LABEL:</span> for known section labels."""
+    return _SECTION_RE.sub(
+        lambda m: f'<span class="section-label">{m.group(1).upper()}:</span>',
+        line,
+    )
 
 
 def build_html(data):
@@ -251,7 +274,7 @@ def build_html(data):
                 if summary_lines:
                     h.append('<div class="conv-body">')
                     for line in summary_lines:
-                        h.append(f'<p style="margin:3px 0;">{line}</p>')
+                        h.append(f'<p style="margin:3px 0;">{_restyle_section_labels(line)}</p>')
                     h.append('</div>')
 
                 h.append('</div>')  # conversation

@@ -1,0 +1,143 @@
+{
+  "video_id": "uDVkcZwB0EU",
+  "url": "https://www.youtube.com/watch?v=uDVkcZwB0EU",
+  "title": "Deep Dive into Foundry IQ",
+  "published_date": "2026-01-19",
+  "duration_seconds": 2285,
+  "duration_formatted": "38m",
+  "description": "A walkthrough of Microsoft Foundry IQ and its capabilities.\n\n🔎 Looking for content on a particular topic? Search the channel. If I have something it will be there!\n🤔  Due to the channel growth and number of people wanting help I no longer can answer or even read questions and they will just stay in the moderation queue never to be seen so please post questions to other sites like Reddit, Microsoft Community Hub etc.\n\n▬▬▬▬▬▬  C H A P T E R S ⏰  ▬▬▬▬▬▬\n00:00 - Introduction\n00:15 - AI models and their knowledge\n01:31 - RAG to the rescue\n03:12 - Azure AI Search\n08:24 - Foundry IQ\n09:03 - Agentic RAG\n09:32 - Multiple knowledge sources\n10:18 - New types of knowledge source\n11:55 - Remote knowledge sources\n14:22 - Knowledge bases and use of Azure AI Search resource\n15:44 - Adding knowledge sources\n17:09 - SKU limits\n17:46 - Collections of knowledge sources\n18:49 - Reasoning effort\n22:31 - Importance of good descriptions and instructions\n23:51 - Self-reflection\n25:39 - Output modes\n28:31 - Seeing the output modes in action\n33:11 - Peeking inside its thinking\n34:37 - Summary\n35:15 - How the IQs work together\n37:43 - Close\n\n▬▬▬▬▬▬  K E Y   L I N K S 🔗 ▬▬▬▬▬▬\n► Whiteboard:\n🔗 \nhttps://github.com/johnthebrit/Random...\n► SKU limits:\n🔗 https://learn.microsoft.com/azure/sea...\n► Foundry IQ reasoning blog:\n🔗 https://techcommunity.microsoft.com/b...\n\n▬▬▬▬▬▬  Want to learn more? 🚀  ▬▬▬▬▬▬ \n📖 Recommended Learning Path for Azure\n🔗 https://learn.onboardtoazure.com\n🥇 Certification Content Repository\n🔗 https://github.com/johnthebrit/Certif...\n📅 Weekly Azure Update\n🔗     • Azure Infrastructure Updates  \n☁ Azure Master Class\n🔗     • Microsoft Azure Master Class v2 (being upd...  \n⚙ DevOps Master Class\n🔗     • DevOps Master Class  \n💻 PowerShell Master Class\n🔗    • PowerShell Master Class  \n🎓 Certification Cram Videos\n🔗     • Microsoft Certification Exam Prep Videos  \n🧠 Mentoring Content\n🔗    • Virtual Mentoring  \n❔ Questions? Maybe I answered it in my FAQ\n🔗 https://savilltech.com/faq\n👕 Cure Childhood Cancer Charity T-Shirt Channel Store\n🔗 https://johns-t-shirts-store.creator-...\n\n👂 Enable the subtitles and from there you can translate to your native language via the auto-translate feature in settings!    • YouTube Captions and Auto Translate Quick ...   for a demo of using this feature.\n\nSUBSCRIBE  ✅     / @ntfaqguy  \n\n#microsoft #azureai #AI #LLM #johnsavillstechnicaltraining #onboardtoazure\nChapters\nView all\nIntroduction\n0:00\nAI models and their knowledge\n0:15\nRAG to the rescue\n1:31\nAzure AI Search\n3:12\nFoundry IQ\n8:24\nAgentic RAG\n9:03\nMultiple knowledge sources\n9:32\nNew types of knowledge source\n10:18\nTranscript\n\nFollow along using the transcript.\n\nShow transcript\nJohn Savill's Technical Training\n420K subscribers\nVideos\nAbout\nUsing Your Own Data with Large Language Models (LLMs) aka Making JohnBot!\nby John Savill's Technical Training\nShow less\n",
+  "chapters": [
+    {
+      "title": "- Introduction",
+      "time": "00:00",
+      "seconds": 0,
+      "url": "https://www.youtube.com/watch?v=uDVkcZwB0EU&t=0s"
+    },
+    {
+      "title": "- AI models and their knowledge",
+      "time": "00:15",
+      "seconds": 15,
+      "url": "https://www.youtube.com/watch?v=uDVkcZwB0EU&t=15s"
+    },
+    {
+      "title": "- RAG to the rescue",
+      "time": "01:31",
+      "seconds": 91,
+      "url": "https://www.youtube.com/watch?v=uDVkcZwB0EU&t=91s"
+    },
+    {
+      "title": "- Azure AI Search",
+      "time": "03:12",
+      "seconds": 192,
+      "url": "https://www.youtube.com/watch?v=uDVkcZwB0EU&t=192s"
+    },
+    {
+      "title": "- Foundry IQ",
+      "time": "08:24",
+      "seconds": 504,
+      "url": "https://www.youtube.com/watch?v=uDVkcZwB0EU&t=504s"
+    },
+    {
+      "title": "- Agentic RAG",
+      "time": "09:03",
+      "seconds": 543,
+      "url": "https://www.youtube.com/watch?v=uDVkcZwB0EU&t=543s"
+    },
+    {
+      "title": "- Multiple knowledge sources",
+      "time": "09:32",
+      "seconds": 572,
+      "url": "https://www.youtube.com/watch?v=uDVkcZwB0EU&t=572s"
+    },
+    {
+      "title": "- New types of knowledge source",
+      "time": "10:18",
+      "seconds": 618,
+      "url": "https://www.youtube.com/watch?v=uDVkcZwB0EU&t=618s"
+    },
+    {
+      "title": "- Remote knowledge sources",
+      "time": "11:55",
+      "seconds": 715,
+      "url": "https://www.youtube.com/watch?v=uDVkcZwB0EU&t=715s"
+    },
+    {
+      "title": "- Knowledge bases and use of Azure AI Search resource",
+      "time": "14:22",
+      "seconds": 862,
+      "url": "https://www.youtube.com/watch?v=uDVkcZwB0EU&t=862s"
+    },
+    {
+      "title": "- Adding knowledge sources",
+      "time": "15:44",
+      "seconds": 944,
+      "url": "https://www.youtube.com/watch?v=uDVkcZwB0EU&t=944s"
+    },
+    {
+      "title": "- SKU limits",
+      "time": "17:09",
+      "seconds": 1029,
+      "url": "https://www.youtube.com/watch?v=uDVkcZwB0EU&t=1029s"
+    },
+    {
+      "title": "- Collections of knowledge sources",
+      "time": "17:46",
+      "seconds": 1066,
+      "url": "https://www.youtube.com/watch?v=uDVkcZwB0EU&t=1066s"
+    },
+    {
+      "title": "- Reasoning effort",
+      "time": "18:49",
+      "seconds": 1129,
+      "url": "https://www.youtube.com/watch?v=uDVkcZwB0EU&t=1129s"
+    },
+    {
+      "title": "- Importance of good descriptions and instructions",
+      "time": "22:31",
+      "seconds": 1351,
+      "url": "https://www.youtube.com/watch?v=uDVkcZwB0EU&t=1351s"
+    },
+    {
+      "title": "- Self-reflection",
+      "time": "23:51",
+      "seconds": 1431,
+      "url": "https://www.youtube.com/watch?v=uDVkcZwB0EU&t=1431s"
+    },
+    {
+      "title": "- Output modes",
+      "time": "25:39",
+      "seconds": 1539,
+      "url": "https://www.youtube.com/watch?v=uDVkcZwB0EU&t=1539s"
+    },
+    {
+      "title": "- Seeing the output modes in action",
+      "time": "28:31",
+      "seconds": 1711,
+      "url": "https://www.youtube.com/watch?v=uDVkcZwB0EU&t=1711s"
+    },
+    {
+      "title": "- Peeking inside its thinking",
+      "time": "33:11",
+      "seconds": 1991,
+      "url": "https://www.youtube.com/watch?v=uDVkcZwB0EU&t=1991s"
+    },
+    {
+      "title": "- Summary",
+      "time": "34:37",
+      "seconds": 2077,
+      "url": "https://www.youtube.com/watch?v=uDVkcZwB0EU&t=2077s"
+    },
+    {
+      "title": "- How the IQs work together",
+      "time": "35:15",
+      "seconds": 2115,
+      "url": "https://www.youtube.com/watch?v=uDVkcZwB0EU&t=2115s"
+    },
+    {
+      "title": "- Close",
+      "time": "37:43",
+      "seconds": 2263,
+      "url": "https://www.youtube.com/watch?v=uDVkcZwB0EU&t=2263s"
+    }
+  ]
+}
