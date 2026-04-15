@@ -8,7 +8,7 @@ An external automation depends on three EXACT text markers being present
   M3  <div class="footer-bar">
 
 This script performs two checks:
-  1. SOURCE CHECK — scans the four Python generator files and verifies
+  1. SOURCE CHECK — scans the five Python generator files and verifies
      that the marker strings appear in the code exactly as required.
   2. OUTPUT CHECK — scans every HTML file in output/ whose name matches
      the digest naming patterns, verifying the three markers each appear
@@ -35,6 +35,7 @@ MARKERS = [M1, M2, M3]
 GENERATORS = [
     "pipeline_email_report.py",
     "pipeline_video_email_report.py",
+    "pipeline_teams_email_report.py",
     "engage_build_html.py",
     "ve-notifications-build-html.py",
 ]
@@ -43,6 +44,7 @@ GENERATORS = [
 DIGEST_PATTERNS = [
     r"Blog_Notifications-Digest-From-.*\.html",
     r"Video_Notifications-Digest-From-.*\.html",
+    r"Recordings_Digest-From-.*\.html",
     r"Viva_Engage-Digest-From-.*\.html",
 ]
 

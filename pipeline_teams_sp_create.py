@@ -5,9 +5,10 @@ Usage:
   python pipeline_teams_sp_create.py <input.json>
 
 Input JSON fields:
-  title, published_date, summary, tech, duration, sha256_id, video_link
+  title, published_date, summary, tech, duration (or duration_formatted),
+  sha256_id, video_link, meeting_sender (optional, maps to SourceNewId via source_map)
 
-Output: JSON to stdout with ok, id, title, link_warning.
+Output: JSON to stdout with ok, id, title, link_warning, link_skipped.
 """
 import json, re, os, sys
 from urllib.parse import unquote
@@ -27,28 +28,7 @@ SP_SITE_BASE = CONFIG["sharepoint"]["site_base"]
 SP_LIST_URL = TM_CFG["list_url"]
 FIELDS = TM_CFG["fields"]
 TECH_MAP_IDS = {k: int(v) for k, v in CONFIG["tech_map"].items()}
-
-
-def shorten_stream_url(url):
-    """Shorten a SharePoint Stream URL to fit the 255-char SP Link field limit.
-    Strips referrer/referrerScenario params, falls back to direct file URL."""
-    from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
-    parsed = urlparse(url)
-    params = parse_qs(parsed.query, keep_blank_values=True)
-    # Keep only essential params (id, share)
-    keep = {k: v[0] for k, v in params.items() if k in ("id", "share")}
-    short = urlunparse((parsed.scheme, parsed.netloc, parsed.path, "", urlencode(keep), ""))
-    if len(short) <= 255:
-        return short
-    # Still too long: use direct file URL with ?web=1
-    file_id = params.get("id", [""])[0]
-    if file_id:
-        direct = f"{parsed.scheme}://{parsed.netloc}{unquote(file_id)}?web=1"
-        # Re-encode spaces only
-        direct = direct.replace(" ", "%20")
-        if len(direct) <= 255:
-            return direct
-    return short[:255]
+SOURCE_MAP = {k: int(v) for k, v in CONFIG["source_map"].items()}
 
 
 def get_tech_ids(tech_str):
@@ -124,10 +104,12 @@ def create_sp_item(page, digest, entity_type, item_data):
     tech_str = item_data.get("tech", "")
     link = unquote(item_data.get("video_link", ""))  # SP URL field rejects encoded chars
     summary = item_data.get("summary", "")
-    duration = item_data.get("duration", "")
+    duration = item_data.get("duration", "") or item_data.get("duration_formatted", "")
     sha256_id = item_data.get("sha256_id", "")
+    meeting_sender = item_data.get("meeting_sender", "")
 
     tech_ids = get_tech_ids(tech_str)
+    source_id = SOURCE_MAP.get(meeting_sender) if meeting_sender else None
 
     body = {
         "__metadata": {"type": entity_type},
@@ -137,6 +119,13 @@ def create_sp_item(page, digest, entity_type, item_data):
         FIELDS["duration"]: duration,
         FIELDS["sha256_id"]: sha256_id,
     }
+    if source_id:
+        body["SourceNewId"] = source_id
+    elif meeting_sender:
+        print(f"  WARNING: Unknown meeting_sender '{meeting_sender}', skipping SourceNewId", file=sys.stderr)
+    # If URL > 255 chars, store full URL in LongLink (multi-line text field)
+    if len(link) > 255 and "long_link" in FIELDS:
+        body[FIELDS["long_link"]] = link
     if tech_ids:
         body["TechId"] = {"results": tech_ids}
 
@@ -169,11 +158,10 @@ def create_sp_item(page, digest, entity_type, item_data):
     }}""")
 
     # Update Link field via MERGE (SP.FieldUrlValue can't be set in POST)
-    if result.get("ok") and link:
+    # Skip if URL > 255 chars — SP Hyperlink field has a 255-char limit;
+    # the full URL is already stored in LongLink during the POST above.
+    if result.get("ok") and link and len(link) <= 255:
         new_id = result["id"]
-        # SP URL field max is ~255 chars; shorten stream URLs if needed
-        if len(link) > 255:
-            link = shorten_stream_url(link)
         link_body = json.dumps(
             {
                 "__metadata": {"type": entity_type},
@@ -211,6 +199,8 @@ def create_sp_item(page, digest, entity_type, item_data):
         }}""")
         if not link_result.get("ok"):
             result["link_warning"] = f"Link update failed: {link_result}"
+    elif result.get("ok") and link and len(link) > 255:
+        result["link_skipped"] = f"URL too long ({len(link)} chars) for SP Hyperlink field (max 255). Stored in LongLink only."
 
     return result
 

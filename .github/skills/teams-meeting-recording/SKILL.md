@@ -17,7 +17,7 @@ All parameters are in `config.json` at the workspace root. Read it at the start 
 - `teams_meeting.list_api` — SP REST API path for the VideosMSInt list
 - `teams_meeting.list_entity_type` — entity type for POST/MERGE (auto-discovered at runtime)
 - `teams_meeting.list_url` — SP list URL (used for auth context navigation)
-- `teams_meeting.fields` — field internal name mapping: `published`, `summary`, `duration`, `sha256_id`
+- `teams_meeting.fields` — field internal name mapping: `published`, `summary`, `duration`, `sha256_id`, `long_link`
 - `sharepoint.site_base` — SP site base URL for REST calls
 - `tech_map` — technology label → SP Tech lookup ID
 
@@ -38,9 +38,23 @@ The user provides one or more SharePoint Stream URLs pointing to Teams meeting r
 https://{tenant}-my.sharepoint.com/personal/{user}/_layouts/15/stream.aspx?id=...
 ```
 
+**Meeting Sender convention:** If the user places text in parentheses immediately before a URL, use that text as the `meeting_sender` value for the SP item. This maps to the `SourceNew` lookup field via `config.json → source_map`. Example:
+
+```
+(MSSec) https://microsoft.sharepoint.com/...
+```
+
+→ `"meeting_sender": "MSSec"` in the input JSON → `SourceNewId` is set from `source_map["MSSec"]`.
+
+If no parenthesized text precedes the URL, omit `meeting_sender` from the input JSON.
+
+**Auto-detection:** `pipeline_fetch_teams_meeting.py` scans the page text and URL for known keywords (currently: "LevelUp"). If found, the output JSON includes `"detected_meeting_sender": "LevelUp"`. Use this value as `meeting_sender` when calling `pipeline_teams_sp_create.py` **unless** the user explicitly provided a parenthesized sender (explicit always wins).
+
 ## Procedure
 
 Execute the steps below **strictly in order**. For multiple URLs, repeat the full procedure for each.
+
+**Same-title rule:** When processing multiple URLs in a single batch and two or more recordings share the same title (as returned by `pipeline_fetch_teams_meeting.py`), append ` - Part X` to each title before creating the SP item, where X is a sequential number (1, 2, 3 …) in the order the URLs were provided by the user. Example: three recordings all titled "Security Workshop" become "Security Workshop - Part 1", "Security Workshop - Part 2", "Security Workshop - Part 3".
 
 ---
 
@@ -71,9 +85,12 @@ This script:
   "sha256_id": "a1b2c3d4...",
   "transcript_path": "teams_transcripts/a1b2c3d4....txt",
   "transcript_length": 28450,
-  "url": "https://..."
+  "url": "https://...",
+  "detected_meeting_sender": "LevelUp"
 }
 ```
+
+> `detected_meeting_sender` is only present when a known keyword (e.g. "LevelUp") is found on the page.
 
 **If transcript extraction fails:** The script saves a debug screenshot (`debug_teams_meeting.png`). Inspect the screenshot to identify the correct DOM selectors for the transcript panel, then modify the script if needed. Do not proceed to Step 2 without a transcript — the summary depends on it.
 
@@ -137,9 +154,14 @@ First, format the data:
 - `title`: from Step 1
 - `summary`: from Step 3
 - `tech`: from Step 4
-- `duration`: from Step 1 (`duration_formatted`), in `Xh YYm` format (or `Ym` if minutes are single digit)
+- `duration`: **MANDATORY** — from Step 1 (`duration_formatted`). Format: `Xh YYm` (e.g. `1h 06m`) or `Ym` if minutes are single-digit (e.g. `8m`). Must always be provided in the input JSON as either `"duration"` or `"duration_formatted"`.
 - `sha256_id`: from Step 1
 - `video_link`: the original URL provided by the user
+- `meeting_sender`: (optional) the parenthesized text preceding the URL, if provided by the user. Maps to `SourceNewId` via `config.json → source_map`. **Priority:**
+  1. Explicit parenthesized text from user
+  2. `detected_meeting_sender` from Step 1 output
+  3. **Technology-based fallback:** If neither (1) nor (2) is available, attempt to infer a source from the meeting's primary technology. Look at the `source_map` keys in `config.json` and consider **only technology-oriented entries** (e.g. `Entra`, `MDC`, `MDE`, `MDVM`, `MDO`, `MDXDR`, `Sentinel`, `Purview`, `SCP`, `AzNet`, `AzMon`, `AzArc`, `ConfComp`, `MSSec`, `AAIFoundry`, `MDA`, `MDI`), **excluding community/series entries** (e.g. `LevelUp`, `Ninja`, `CCP`, `SSA`, `EEC`, `IIC`, `ECS`, `IdAdv`, `JS`, `CPS`, `Other`). Using the transcript content and the tech classification from Step 4, identify the single primary technology of the meeting and match it to the closest technology source key. If a clear match exists, use it as `meeting_sender`.
+  4. Omit — if no match is found at any level, leave `meeting_sender` empty.
 
 Write the JSON to a temp file and run:
 
@@ -158,6 +180,13 @@ The script:
 4. If a duplicate exists → returns `{"ok": false, "duplicate": true, ...}`. Inform the user and stop.
 5. Creates the new SP item via POST
 6. Sets the Link field via a separate MERGE request (`SP.FieldUrlValue`)
+
+**Long URLs (>255 chars):** SharePoint `SP.FieldUrlValue` (Hyperlink) fields have a 255-char limit. Teams meeting URLs frequently exceed this. When the URL is longer than 255 characters, the script:
+- Stores the **full original URL** in the `LongLink` field (a multi-line plain text field, internal name `field_11`) during the POST
+- **Skips** the MERGE on the `Link` Hyperlink field entirely (no truncation, no broken links)
+- Returns `link_skipped` in the output JSON to signal this
+
+When the URL is ≤ 255 characters, the `Link` Hyperlink field is set normally via MERGE, and `LongLink` is not populated.
 
 **Output:** JSON with `ok`, `id`, `title`, and optionally `link_warning`.
 

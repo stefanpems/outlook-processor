@@ -49,8 +49,9 @@ If an existing script does not cover a need:
 
 | File | Purpose |
 |------|---------|
-| `pipeline_fetch_teams_meeting.py` | Fetch metadata + transcript from a SharePoint Stream page via CDP. Extracts title, date, duration, transcript; computes SHA256 of URL. |
+| `pipeline_fetch_teams_meeting.py` | Fetch metadata + transcript from a SharePoint Stream page via CDP. Extracts title, date, duration, transcript; computes SHA256 of URL. Auto-detects `meeting_sender` from page content and URL patterns (see detection rules in script). If no rule matches, `meeting_sender` is left empty. |
 | `pipeline_teams_sp_create.py` | Create a new VideosMSInt SP item via REST API (POST + MERGE for Link). Includes built-in dedup check by SHA256. |
+| `pipeline_teams_email_report.py` | Build HTML recordings digest from SP VideosMSInt (grouped by topic), save to `output/` for email sending. |
 
 ### VE Notification Pipeline Scripts
 
@@ -77,7 +78,7 @@ If an existing script does not cover a need:
 | `yt_transcript.py` | Download YouTube video transcript via CDP → `yt_<VIDEO_ID>.txt`. |
 | `pipeline_fetch_videoposts.py` | Fetches all existing VideoPosts from SP list → `sp_videoposts.json`. |
 | `cdp_helper.py` | Shared helper: checks if Edge CDP is reachable, auto-launches Edge with debug profile if not. Imported by all CDP-dependent scripts. |
-| `verify_html_markers.py` | Verify that the 4 HTML digest generators still produce the 3 structural markers required by external automation. Usage: `python verify_html_markers.py [--source] [--output]`. |
+| `verify_html_markers.py` | Verify that the 5 HTML digest generators still produce the 3 structural markers required by external automation. Usage: `python verify_html_markers.py [--source] [--output]`. |
 
 ### Configuration & Data Files
 
@@ -277,9 +278,10 @@ An external automation injects content into the HTML digest files produced by th
 3. M1 must NOT be inside a conditional block — it must always be emitted.
 4. These strings must remain **character-for-character identical**. Do not change styling, add attributes, rename classes, or alter whitespace.
 
-**Files under this contract** (the four HTML digest generators):
+**Files under this contract** (the five HTML digest generators):
 - `pipeline_email_report.py` (blog digest)
 - `pipeline_video_email_report.py` (video digest)
+- `pipeline_teams_email_report.py` (recordings digest)
 - `engage_build_html.py` (Viva Engage conversational digest)
 - `ve-notifications-build-html.py` (Viva Engage notification digest)
 

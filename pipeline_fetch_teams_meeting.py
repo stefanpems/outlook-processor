@@ -5,6 +5,8 @@ Connects to Edge via CDP, navigates to the video page (muted), extracts metadata
 Usage: python pipeline_fetch_teams_meeting.py <url>
 Output: JSON to stdout with title, published_date, duration_seconds, duration_formatted,
         sha256_id, transcript_path, transcript_length.
+        Optional: detected_meeting_sender (e.g. "LevelUp", "Ninja", "CCP", etc.)
+        auto-detected from page content and URL patterns.
 """
 import json, re, os, sys, hashlib, time
 from urllib.parse import unquote
@@ -401,9 +403,12 @@ def fetch_teams_meeting(url):
             # Save transcript
             permission_denied = False
             if transcript_text:
-                # Check for permission-denied messages
+                # Check for permission-denied messages — only on short texts
+                # (actual permission pages are brief; long transcripts may
+                # legitimately contain phrases like "request access")
                 lower = transcript_text.lower()
-                if ("don't have permission" in lower
+                is_short = len(transcript_text) < 500
+                if is_short and ("don't have permission" in lower
                         or "non hai l'autorizzazione" in lower
                         or "request access" in lower):
                     print(
@@ -427,6 +432,68 @@ def fetch_teams_meeting(url):
                 print("Debug screenshot: debug_teams_meeting.png", file=sys.stderr)
                 transcript_path = ""
 
+            # --- Auto-detect meeting sender from page content & URL ---
+            detected_meeting_sender = ""
+            try:
+                page_text = page.evaluate("() => document.body.innerText || ''")
+                page_url_decoded = unquote(url).lower()
+
+                if re.search(r"levelup", page_text, re.IGNORECASE):
+                    detected_meeting_sender = "LevelUp"
+                elif re.search(r"bootcamp", page_text, re.IGNORECASE):
+                    detected_meeting_sender = "Ninja"
+                elif (page_url_decoded.startswith(
+                        "https://microsoft-my.sharepoint.com/personal/customerconnection_microsoft_com/")
+                      or "Accelerated Collaboration Forum" in page_text):
+                    detected_meeting_sender = "CCP"
+                elif (page_url_decoded.startswith(
+                        "https://microsoft.sharepoint.com/sites/securitysolutions")
+                      or "Security Global Connection Call" in page_text):
+                    detected_meeting_sender = "SSA"
+                elif (page_url_decoded.startswith(
+                        "https://microsoft.sharepoint.com/teams/azureadidentitychamps")
+                      or "Entra Expert Connect" in page_text):
+                    detected_meeting_sender = "EEC"
+                elif (page_url_decoded.startswith(
+                        "https://microsoft.sharepoint.com/teams/identity-cc/")
+                      or "Identity Connected Community" in page_text):
+                    detected_meeting_sender = "IIC"
+                elif (re.search(r"sentinel", page_text, re.IGNORECASE)
+                      and "Office Hours" in page_text):
+                    detected_meeting_sender = "Sentinel"
+                elif ("Office Hours" in page_text
+                      and (re.search(r"Defender for Cloud Apps", page_text, re.IGNORECASE)
+                           or re.search(r"\bMDA\b", page_text))):
+                    detected_meeting_sender = "MDA"
+                elif ("Office Hours" in page_text
+                      and (re.search(r"Defender for Cloud", page_text, re.IGNORECASE)
+                           or re.search(r"\bMDC\b", page_text))):
+                    detected_meeting_sender = "MDC"
+                elif ("Office Hours" in page_text
+                      and (re.search(r"Defender for Endpoint", page_text, re.IGNORECASE)
+                           or re.search(r"\bMDE\b", page_text))):
+                    detected_meeting_sender = "MDE"
+                elif ("Office Hours" in page_text
+                      and (re.search(r"Defender for Identity", page_text, re.IGNORECASE)
+                           or re.search(r"\bMDI\b", page_text))):
+                    detected_meeting_sender = "MDI"
+                elif ("Field Connection Forum" in page_text
+                      or re.search(r"Defender for Office", page_text, re.IGNORECASE)
+                      or re.search(r"\bMDO\b", page_text)):
+                    detected_meeting_sender = "MDO"
+                elif (page_url_decoded.startswith(
+                        "https://microsoft-my.sharepoint.com/personal/deverett_microsoft_com")
+                      or "Deep Dive" in page_text):
+                    detected_meeting_sender = "ECS"
+                elif "?id=%2fsites%2froadmaphub%2fshared%20documents%2fvideos%2fidentity%20%26%20network%20access%2f" in page_url_decoded:
+                    detected_meeting_sender = "IdAdv"
+
+                if detected_meeting_sender:
+                    print(f"Auto-detected meeting sender: {detected_meeting_sender}",
+                          file=sys.stderr)
+            except Exception:
+                pass
+
             result = {
                 "title": title,
                 "published_date": published_date,
@@ -438,6 +505,8 @@ def fetch_teams_meeting(url):
                 "transcript_permission_denied": permission_denied,
                 "url": url,
             }
+            if detected_meeting_sender:
+                result["detected_meeting_sender"] = detected_meeting_sender
             return result
 
         finally:
