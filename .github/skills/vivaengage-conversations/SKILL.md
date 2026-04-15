@@ -325,6 +325,10 @@ Since the feed is sorted by **Recent activity**, the most recently active thread
 4. **Community must be in sidebar** — The script locates communities by matching link text. Ensure the community is in Favorites or a visible section.
 5. **Edge must stay open** — Playwright connects via CDP; closing Edge breaks the connection.
 
+## HTML Digest Markers Contract
+
+`engage_build_html.py` is under the **HTML Digest Structural Markers** contract (see `copilot-instructions.md`). The generated HTML must contain markers M1, M2, M3 exactly once each. **After any edit to this script**, run `python verify_html_markers.py` to confirm.
+
 ## Tools Required
 
 - **Python 3.12+** with `playwright` package

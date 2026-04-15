@@ -81,3 +81,7 @@ Report:
 - Number of topics
 - Date range
 - Recipients the email was sent to
+
+## HTML Digest Markers Contract
+
+`pipeline_email_report.py` is under the **HTML Digest Structural Markers** contract (see `copilot-instructions.md`). The generated HTML must contain markers M1, M2, M3 exactly once each. **After any edit to this script**, run `python verify_html_markers.py` to confirm.

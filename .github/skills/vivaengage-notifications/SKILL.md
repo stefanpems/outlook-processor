@@ -313,6 +313,10 @@ The `ve_notifications_cache.json` file tracks the session:
 }
 ```
 
+## HTML Digest Markers Contract
+
+`ve-notifications-build-html.py` is under the **HTML Digest Structural Markers** contract (see `copilot-instructions.md`). The generated HTML must contain markers M1, M2, M3 exactly once each. **After any edit to this script**, run `python verify_html_markers.py` to confirm.
+
 ## Tools Required
 
 - **Python 3.12+** with `playwright` package

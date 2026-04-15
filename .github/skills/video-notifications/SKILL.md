@@ -472,6 +472,10 @@ Columns: Published, Title, Tech, Link, Topic, Duration, Abstract, Dup Session, D
 
 12. **YouTube transcript download may fail** (no subtitles). Log warning but continue processing — transcript is supplementary, not required for SP item creation.
 
+## HTML Digest Markers Contract
+
+`pipeline_video_email_report.py` is under the **HTML Digest Structural Markers** contract (see `copilot-instructions.md`). The generated HTML must contain markers M1, M2, M3 exactly once each. **After any edit to this script**, run `python verify_html_markers.py` to confirm.
+
 ## Tools Required
 
 - **Python 3.12+** with `playwright`, `openpyxl` packages

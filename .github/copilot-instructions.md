@@ -77,6 +77,7 @@ If an existing script does not cover a need:
 | `yt_transcript.py` | Download YouTube video transcript via CDP → `yt_<VIDEO_ID>.txt`. |
 | `pipeline_fetch_videoposts.py` | Fetches all existing VideoPosts from SP list → `sp_videoposts.json`. |
 | `cdp_helper.py` | Shared helper: checks if Edge CDP is reachable, auto-launches Edge with debug profile if not. Imported by all CDP-dependent scripts. |
+| `verify_html_markers.py` | Verify that the 4 HTML digest generators still produce the 3 structural markers required by external automation. Usage: `python verify_html_markers.py [--source] [--output]`. |
 
 ### Configuration & Data Files
 
@@ -259,6 +260,32 @@ When automating Outlook Web via Playwright, these rules are **mandatory**:
 5. **Menu items use Italian labels** in this environment: "Categorizza", "Sposta", "Cerca una cartella".
 
 6. **Never use `-category:` in Outlook Web search queries.** Outlook Web search does not support negative category filters — they silently fail and return zero results. To exclude already-processed emails, omit the category filter from the search query and instead **visually inspect** each email's category labels in the reading pane after clicking on it. If the email already has the processed category, skip it.
+
+## HTML Digest Structural Markers — MANDATORY CONTRACT
+
+An external automation injects content into the HTML digest files produced by this workspace. It locates injection points via three **exact text markers** that **MUST each appear exactly once** in every generated digest HTML. Breaking this contract breaks the automation silently.
+
+| Marker | Exact text |
+|--------|-----------|
+| **M1** | `<p style="font-size:15px;color:#555;margin:-12px 0 20px 0;">` |
+| **M2** | `</p>` followed by a literal newline `\n` then `<div class="stats-bar">` |
+| **M3** | `<div class="footer-bar">` |
+
+**Rules:**
+1. Each marker must appear **exactly once** in the generated HTML body (CSS class definitions like `.stats-bar {` don't count).
+2. The `h` list must be joined with `'\n'.join(h)` to ensure M2 has a real newline between `</p>` and `<div class="stats-bar">`.
+3. M1 must NOT be inside a conditional block — it must always be emitted.
+4. These strings must remain **character-for-character identical**. Do not change styling, add attributes, rename classes, or alter whitespace.
+
+**Files under this contract** (the four HTML digest generators):
+- `pipeline_email_report.py` (blog digest)
+- `pipeline_video_email_report.py` (video digest)
+- `engage_build_html.py` (Viva Engage conversational digest)
+- `ve-notifications-build-html.py` (Viva Engage notification digest)
+
+**`pipeline_update_reports.py`** produces session-report HTML with a different template — it is NOT subject to this contract.
+
+**After any edit to these four files**, run `python verify_html_markers.py` to confirm the markers are intact.
 
 ## SharePoint REST API — Key Patterns
 
