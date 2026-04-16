@@ -81,6 +81,8 @@ The script:
 
 **If 0 emails found:** Inform the user and stop.
 
+**Result-count cross-check:** The retrieve script prints the total number of unique emails captured. If this count is **lower than the total shown by Outlook** in the search-results header (e.g. Outlook says "31 results" but only 26 were captured), **re-run the retrieve** or manually scroll to find the missing items. Outlook Web uses virtual scrolling that can cause items to be missed during DOM extraction — this is an inherent limitation that requires a verification step.
+
 ---
 
 ### Phase 2 — Analyze Email Content
@@ -100,6 +102,8 @@ For each email in `ve_notifications_cache.json`, the Copilot agent reads the `bo
 For each email, generate a **summary in English** of the post text (max 100 words, well-formatted using `<b>`, `<i>`, `<ul><li>`, URLs). **Ignore** images, tags, and replies at this stage.
 
 The analysis data is recorded in the cache by the Copilot agent (reading and updating `ve_notifications_cache.json`).
+
+**Corrupted-metadata check:** After analyzing all emails, scan the cache for entries with **empty `post_type`**, **empty `community_name`**, or **subjects that look like Italian date/time strings** (e.g. `"Ieri alle 14:57"`, `"Oggi alle 09:30"`). These indicate the retrieve script scraped the wrong DOM element. For each such entry, re-read the `body_text` field to reconstruct the correct `subject`, `post_type`, `community_name`, and `author`. If `body_text` is also empty or insufficient, flag the entry for manual review and inform the user before proceeding.
 
 ---
 
@@ -171,6 +175,12 @@ python ve-notifications-email-actions.py --batch-file <json_file>
 ```
 
 Where the JSON is a list: `[{"notification_title": "...", "author": "...", "community_name": "..."}]`
+
+**IMPORTANT — Use exact subjects:** The `notification_title` field in the batch JSON **must be the exact `subject` or `post_title` from `ve_notifications_cache.json`**, not the agent's rephrased or truncated version. Using rephrased text causes Outlook search to return 0 results.
+
+**Retry failed items:** After batch email actions, check the output for items that returned `"found": 0`. For each failed item, **retry individually** with a progressively shorter search term extracted from the beginning of the original email subject (e.g. first 6-8 words). If the retry still fails, inform the user and list the failed items.
+
+**Verify both categorized AND moved:** The script output includes separate `"categorized"` and `"moved"` boolean flags per item. After the batch completes, check that **both** are `true` for every item. It is common for categorization to succeed while the move fails (the "Sposta" button may not be found in the toolbar after re-selection). For any item where `"categorized": true` but `"moved": false`, **retry the move only** by running email actions again for that item — the script will re-categorize (harmless) and attempt the move again.
 
 ---
 
