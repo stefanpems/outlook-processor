@@ -27,13 +27,18 @@ TARGET_FOLDER = CONFIG["outlook"]["target_folder"]
 EXCLUDE_TERMS = CONFIG["outlook"].get("exclude_terms", [])
 
 
+INCLUDE_PROCESSED = "--include-processed" in sys.argv
+
+
 def do_search(page, title):
     """Search Outlook for a specific blog email. Returns count of results."""
     safe = re.sub(r'["\u2018\u2019\u201c\u201d\u2013\u2014]', ' ', title)
     safe = re.sub(r'\s+', ' ', safe).strip()
     words = safe.split()
     short = " ".join(words[:6]) if len(words) > 6 else safe
-    query = f'from:{SENDER} subject:({SUBJECT_PREFIX} {short}) -"By agent - Blog"'
+    query = f'from:{SENDER} subject:({SUBJECT_PREFIX} {short})'
+    if not INCLUDE_PROCESSED:
+        query += ' -"By agent - Blog"'
     for term in EXCLUDE_TERMS:
         query += f' -{term}'
 
@@ -211,16 +216,17 @@ def go_home_tab(page):
     return False
 
 
-def do_move_one(page, row):
-    """Move a single email row to the target folder via top toolbar Sposta button."""
-    # Single-click to select only this row
-    try:
-        box = row.bounding_box()
-        if box:
-            page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-            page.wait_for_timeout(400)
-    except Exception:
-        return False
+def do_move_one(page, row=None):
+    """Move a single email row to the target folder via top toolbar Sposta button.
+    If row is None, moves the currently selected email without re-clicking."""
+    if row is not None:
+        try:
+            box = row.bounding_box()
+            if box:
+                page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+                page.wait_for_timeout(400)
+        except Exception:
+            return False
 
     go_home_tab(page)
     page.wait_for_timeout(500)
@@ -298,12 +304,13 @@ def do_move_one(page, row):
 
 
 def main():
-    if len(sys.argv) < 3:
-        print("Usage: python pipeline_email_actions.py <categorize|move|both> <email_title>")
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    if len(args) < 2:
+        print("Usage: python pipeline_email_actions.py <categorize|move|both> <email_title> [--include-processed]")
         sys.exit(1)
 
-    action = sys.argv[1].lower()
-    title = sys.argv[2]
+    action = args[0].lower()
+    title = args[1]
 
     print(f"Processing email: {title[:70]}", file=sys.stderr)
 
@@ -346,25 +353,33 @@ def main():
 
         result["blog_emails"] = len(matched)
 
-        # Process each matched email individually
+        # Process emails one at a time, re-searching after each to avoid
+        # stale DOM / stale reading-pane issues in virtualized list.
         cat_count = 0
         mov_count = 0
-        for i, row in enumerate(matched):
-            # Re-fetch rows since DOM changes after move
-            if i > 0:
-                page.wait_for_timeout(1500)
-                rows = page.query_selector_all("div[role='option']")
-                blog_rows = [r for r in rows if "[Blog-" in (r.inner_text() or "")]
-                if not blog_rows:
+        max_iter = result["blog_emails"] + 5  # safety limit
+
+        for iteration in range(max_iter):
+            if iteration > 0:
+                # Re-search from scratch for fresh results
+                page.wait_for_timeout(2000)
+                count = do_search(page, title)
+                if count == 0:
                     break
-                row = blog_rows[0]  # always take first remaining
+
+            rows = page.query_selector_all("div[role='option']")
+            blog_rows = [r for r in rows if "[Blog-" in (r.inner_text() or "")]
+            if not blog_rows:
+                break
+
+            row = blog_rows[0]
 
             # Click to select and load reading pane
             try:
                 box = row.bounding_box()
                 if box:
                     page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-                    page.wait_for_timeout(1500)
+                    page.wait_for_timeout(2500)
             except Exception:
                 continue
 
@@ -378,7 +393,7 @@ def main():
 
             if not needs_cat and not needs_move:
                 print(f"  Skip (already done): cat={already_cat} folder={row_folder}", file=sys.stderr)
-                continue
+                break  # search excludes processed; if first result is done, stop
 
             if needs_cat:
                 cat_ok = do_categorize_one(page, row)
@@ -388,16 +403,13 @@ def main():
                 page.wait_for_timeout(500)
 
             if needs_move:
-                # Re-fetch the row since categorize may have changed DOM
-                rows = page.query_selector_all("div[role='option']")
-                blog_rows = [r for r in rows if "[Blog-" in (r.inner_text() or "")]
-                if blog_rows:
-                    mov_ok = do_move_one(page, blog_rows[0])
-                    if mov_ok:
-                        mov_count += 1
-                    # After move, the email disappears and the next is auto-selected.
-                    # Do NOT re-fetch — the loop will re-fetch at the top of next iteration.
-                    page.wait_for_timeout(2000)
+                # Move the currently selected email directly — do NOT re-fetch
+                # rows, because after categorize the email may have vanished
+                # from filtered results but is still selected in the UI.
+                mov_ok = do_move_one(page)
+                if mov_ok:
+                    mov_count += 1
+                page.wait_for_timeout(2000)
 
         result["categorized"] = cat_count > 0
         result["moved"] = mov_count > 0

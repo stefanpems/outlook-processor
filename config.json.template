@@ -36,6 +36,10 @@
     "processed_category": "By agent - Viva Engage",
     "target_folder": "Social Networks"
   },
+  "transcripts": {
+    "yt_transcripts_dir": "yt_transcripts",
+    "teams_transcripts_dir": "teams_transcripts"
+  },
   "output": {
     "dir": "output",
     "xlsx_pattern": "{Type}_Notifications-Digest-From-{date_from}-To-{date_to}.xlsx",

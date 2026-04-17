@@ -151,12 +151,32 @@ def main():
         browser = p.chromium.connect_over_cdp(CDP_URL)
         context = browser.contexts[0]
         page = context.new_page()
-        # Mute video elements before they start playing
-        page.add_init_script("""
-            new MutationObserver(() => {
-                document.querySelectorAll('video').forEach(v => { v.muted = true; });
-            }).observe(document.documentElement, {childList: true, subtree: true});
-        """)
+        # Force-mute via CDP: override volume/muted setters so YouTube cannot unmute
+        _MUTE_SCRIPT = """
+            // Lock volume to 0 and muted to true at prototype level
+            const vDesc = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'volume');
+            Object.defineProperty(HTMLMediaElement.prototype, 'volume', {
+                get: function() { return 0; },
+                set: function(v) { if (vDesc && vDesc.set) vDesc.set.call(this, 0); },
+                configurable: true
+            });
+            const mDesc = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'muted');
+            Object.defineProperty(HTMLMediaElement.prototype, 'muted', {
+                get: function() { return true; },
+                set: function(v) { if (mDesc && mDesc.set) mDesc.set.call(this, true); },
+                configurable: true
+            });
+            // Also intercept AudioContext to silence Web Audio API
+            const OrigAC = window.AudioContext || window.webkitAudioContext;
+            if (OrigAC) {
+                const origResume = OrigAC.prototype.resume;
+                OrigAC.prototype.resume = function() {
+                    this.suspend(); return Promise.resolve();
+                };
+            }
+        """
+        cdp = page.context.new_cdp_session(page)
+        cdp.send("Page.addScriptToEvaluateOnNewDocument", {"source": _MUTE_SCRIPT})
 
         try:
             page.goto(video_url, wait_until="domcontentloaded", timeout=30000)
@@ -199,7 +219,7 @@ def main():
             if do_clean:
                 transcript_text = clean_transcript(transcript_text)
 
-            out_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "yt_transcripts")
+            out_dir = CONFIG.get("transcripts", {}).get("yt_transcripts_dir", os.path.join(BASE, "yt_transcripts"))
             os.makedirs(out_dir, exist_ok=True)
             out_file = os.path.join(out_dir, f"yt_{video_id}.txt")
             with open(out_file, "w", encoding="utf-8") as f:

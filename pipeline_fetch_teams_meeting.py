@@ -19,7 +19,7 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 CONFIG = json.load(open(os.path.join(BASE, "config.json"), encoding="utf-8"))
 CDP_URL = CONFIG["edge_cdp"]["url"]
 
-TRANSCRIPTS_DIR = os.path.join(BASE, "teams_transcripts")
+TRANSCRIPTS_DIR = CONFIG.get("transcripts", {}).get("teams_transcripts_dir", os.path.join(BASE, "teams_transcripts"))
 os.makedirs(TRANSCRIPTS_DIR, exist_ok=True)
 
 

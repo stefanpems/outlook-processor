@@ -73,12 +73,32 @@ def fetch_video_metadata(url):
         browser = p.chromium.connect_over_cdp(CDP_URL)
         ctx = browser.contexts[0]
         page = ctx.new_page()
-        # Mute video elements before they start playing
-        page.add_init_script("""
-            new MutationObserver(() => {
-                document.querySelectorAll('video').forEach(v => { v.muted = true; });
-            }).observe(document.documentElement, {childList: true, subtree: true});
-        """)
+        # Force-mute via CDP: override volume/muted setters so YouTube cannot unmute
+        _MUTE_SCRIPT = """
+            // Lock volume to 0 and muted to true at prototype level
+            const vDesc = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'volume');
+            Object.defineProperty(HTMLMediaElement.prototype, 'volume', {
+                get: function() { return 0; },
+                set: function(v) { if (vDesc && vDesc.set) vDesc.set.call(this, 0); },
+                configurable: true
+            });
+            const mDesc = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'muted');
+            Object.defineProperty(HTMLMediaElement.prototype, 'muted', {
+                get: function() { return true; },
+                set: function(v) { if (mDesc && mDesc.set) mDesc.set.call(this, true); },
+                configurable: true
+            });
+            // Also intercept AudioContext to silence Web Audio API
+            const OrigAC = window.AudioContext || window.webkitAudioContext;
+            if (OrigAC) {
+                const origResume = OrigAC.prototype.resume;
+                OrigAC.prototype.resume = function() {
+                    this.suspend(); return Promise.resolve();
+                };
+            }
+        """
+        cdp = page.context.new_cdp_session(page)
+        cdp.send("Page.addScriptToEvaluateOnNewDocument", {"source": _MUTE_SCRIPT})
 
         try:
             page.goto(canonical_url, wait_until="domcontentloaded", timeout=30000)

@@ -204,15 +204,17 @@ def go_home_tab(page):
     return False
 
 
-def do_move_one(page, row):
-    """Move a single email row to the target folder via top toolbar Sposta button."""
-    try:
-        box = row.bounding_box()
-        if box:
-            page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-            page.wait_for_timeout(400)
-    except Exception:
-        return False
+def do_move_one(page, row=None):
+    """Move a single email row to the target folder via top toolbar Sposta button.
+    If row is None, moves the currently selected email without re-clicking."""
+    if row is not None:
+        try:
+            box = row.bounding_box()
+            if box:
+                page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+                page.wait_for_timeout(400)
+        except Exception:
+            return False
 
     go_home_tab(page)
     page.wait_for_timeout(500)
@@ -333,22 +335,32 @@ def main():
 
         result["video_emails"] = len(matched)
 
+        # Process emails one at a time, re-searching after each to avoid
+        # stale DOM / stale reading-pane issues in virtualized list.
         cat_count = 0
         mov_count = 0
-        for i, row in enumerate(matched):
-            if i > 0:
-                page.wait_for_timeout(1500)
-                rows = page.query_selector_all("div[role='option']")
-                video_rows = [r for r in rows if "[Video-" in (r.inner_text() or "")]
-                if not video_rows:
+        max_iter = result["video_emails"] + 5  # safety limit
+
+        for iteration in range(max_iter):
+            if iteration > 0:
+                # Re-search from scratch for fresh results
+                page.wait_for_timeout(2000)
+                count = do_search(page, title)
+                if count == 0:
                     break
-                row = video_rows[0]
+
+            rows = page.query_selector_all("div[role='option']")
+            video_rows = [r for r in rows if "[Video-" in (r.inner_text() or "")]
+            if not video_rows:
+                break
+
+            row = video_rows[0]
 
             try:
                 box = row.bounding_box()
                 if box:
                     page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-                    page.wait_for_timeout(1500)
+                    page.wait_for_timeout(2500)
             except Exception:
                 continue
 
@@ -361,7 +373,7 @@ def main():
 
             if not needs_cat and not needs_move:
                 print(f"  Skip (already done): cat={already_cat} folder={row_folder}", file=sys.stderr)
-                continue
+                break  # search excludes processed; if first result is done, stop
 
             if needs_cat:
                 cat_ok = do_categorize_one(page, row)
@@ -371,13 +383,13 @@ def main():
                 page.wait_for_timeout(500)
 
             if needs_move:
-                rows = page.query_selector_all("div[role='option']")
-                video_rows = [r for r in rows if "[Video-" in (r.inner_text() or "")]
-                if video_rows:
-                    mov_ok = do_move_one(page, video_rows[0])
-                    if mov_ok:
-                        mov_count += 1
-                    page.wait_for_timeout(2000)
+                # Move the currently selected email directly — do NOT re-fetch
+                # rows, because after categorize the email may have vanished
+                # from filtered results but is still selected in the UI.
+                mov_ok = do_move_one(page)
+                if mov_ok:
+                    mov_count += 1
+                page.wait_for_timeout(2000)
 
         result["categorized"] = cat_count > 0
         result["moved"] = mov_count > 0
